@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { verifyOTP, resendOTP } from '../services/authService';
-import { useAuth } from '../context/authContext';
-import logo from '../assets/react.svg';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { verifyOTP, resendOTP } from "../services/authService";
+import { useAuth } from "../context/authContext";
+import logo from "../assets/react.svg";
 
 function OTPVerification() {
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [resendDisabled, setResendDisabled] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const navigate = useNavigate();
@@ -15,23 +15,25 @@ function OTPVerification() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
-    
+
     try {
       await verifyOTP(otp);
-      navigate('/organizer/dashboard');
+      navigate("/organizer/home");
     } catch (err) {
-      setError(err.response?.data?.message || 'Verification failed. Please try again.');
+      setError(
+        err.response?.data?.message || "Verification failed. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
-    setError('');
+    setError("");
     setResendDisabled(true);
-    
+
     try {
       await resendOTP();
       // Start countdown for 60 seconds
@@ -47,7 +49,9 @@ function OTPVerification() {
         });
       }, 1000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to resend OTP. Please try again.');
+      setError(
+        err.response?.data?.message || "Failed to resend OTP. Please try again."
+      );
       setResendDisabled(false);
     }
   };
@@ -75,10 +79,13 @@ function OTPVerification() {
               <p>{error}</p>
             </div>
           )}
-          
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="otp" className="block text-sm font-medium text-gray-300">
+              <label
+                htmlFor="otp"
+                className="block text-sm font-medium text-gray-300"
+              >
                 Verification Code
               </label>
               <div className="mt-1">
@@ -102,7 +109,7 @@ function OTPVerification() {
                 disabled={isLoading}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Verifying...' : 'Verify Code'}
+                {isLoading ? "Verifying..." : "Verify Code"}
               </button>
             </div>
           </form>
@@ -113,9 +120,9 @@ function OTPVerification() {
               disabled={resendDisabled}
               className="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {resendDisabled 
-                ? `Resend code in ${countdown}s` 
-                : 'Didn\'t receive a code? Resend'}
+              {resendDisabled
+                ? `Resend code in ${countdown}s`
+                : "Didn't receive a code? Resend"}
             </button>
           </div>
         </div>

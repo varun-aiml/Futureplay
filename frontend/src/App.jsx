@@ -1,10 +1,16 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/authContext';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { AuthProvider } from "./context/authContext";
 import LandingPage from "./pages/LandingPage";
-import OrganizerLogin from './pages/OrganizerLogin';
-import OrganizerSignup from './pages/OrganizerSignup';
-import OTPVerification from './pages/OTPVerification';
-import PrivateRoute from './components/PrivateRoute';
+import OrganizerLogin from "./pages/OrganizerLogin";
+import OrganizerSignup from "./pages/OrganizerSignup";
+import OTPVerification from "./pages/OTPVerification";
+import PrivateRoute from "./components/PrivateRoute";
+import OrganizerHome from "./pages/OrganizerHome";
 
 function App() {
   return (
@@ -19,6 +25,14 @@ function App() {
             element={
               <PrivateRoute>
                 <OTPVerification />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/organizer/home"
+            element={
+              <PrivateRoute>
+                <OrganizerHome />
               </PrivateRoute>
             }
           />
