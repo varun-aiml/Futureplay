@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import logo from '../assets/react.svg';
 
 function Header() {
@@ -52,9 +53,12 @@ function Header() {
 
         {/* Desktop Buttons */}
         <div className="hidden md:flex space-x-3">
-          <button className="bg-transparent border-2 border-red-500 text-white hover:bg-red-500 font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
+          <Link 
+            to="/organizer/login" 
+            className="bg-transparent border-2 border-red-500 text-white hover:bg-red-500 font-bold py-2 px-5 rounded-md transition duration-300 shadow-md"
+          >
             Organizers
-          </button>
+          </Link>
           <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
             Players
           </button>
@@ -85,9 +89,12 @@ function Header() {
             <a href="#contact" className="text-white hover:text-red-400 transition duration-300 py-2 font-medium">Contact</a>
             
             <div className="flex flex-col space-y-3 pt-2">
-              <button className="bg-transparent border-2 border-red-500 text-white hover:bg-red-500 font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
+              <Link 
+                to="/organizer/login" 
+                className="bg-transparent border-2 border-red-500 text-white hover:bg-red-500 font-bold py-2 px-5 rounded-md transition duration-300 shadow-md text-center"
+              >
                 Organizers
-              </button>
+              </Link>
               <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
                 Players
               </button>
