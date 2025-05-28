@@ -37,3 +37,8 @@ export const getCurrentUser = () => {
   const user = localStorage.getItem('user');
   return user ? JSON.parse(user) : null;
 };
+
+export const completeGoogleSignup = async (userData) => {
+  const response = await api.post('/auth/complete-profile', userData);
+  return response.data;
+};

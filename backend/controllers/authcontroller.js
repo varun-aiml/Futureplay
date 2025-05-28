@@ -235,3 +235,60 @@ exports.login = async (req, res) => {
     });
   }
 };
+
+// Add this to your existing authcontroller.js file
+
+// @desc    Complete user profile after Google signup
+// @route   POST /api/auth/complete-profile
+// @access  Private
+exports.completeProfile = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update user profile
+    user.phone = phone;
+    user.profileComplete = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile completed successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        profileComplete: user.profileComplete
+      }
+    });
+  } catch (error) {
+    console.error('Profile completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during profile completion',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Make sure to export the generateToken function
+exports.generateToken = generateToken;

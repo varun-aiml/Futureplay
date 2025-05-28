@@ -9,6 +9,7 @@ import LandingPage from "./pages/LandingPage";
 import OrganizerLogin from "./pages/OrganizerLogin";
 import OrganizerSignup from "./pages/OrganizerSignup";
 import OTPVerification from "./pages/OTPVerification";
+import CompleteProfile from "./pages/CompleteProfile";
 import PrivateRoute from "./components/PrivateRoute";
 import OrganizerHome from "./pages/OrganizerHome";
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/organizer/login" element={<OrganizerLogin />} />
           <Route path="/organizer/signup" element={<OrganizerSignup />} />
+          <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route
             path="/organizer/verify-otp"
             element={

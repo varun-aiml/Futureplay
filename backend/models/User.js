@@ -17,14 +17,27 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
+    required: function(){
+      return !this.googleId;
+    },
     trim: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function(){
+      return !this.googleId;
+    },
     minlength: [8, 'Password must be at least 8 characters long'],
     select: false // Don't return password in queries by default
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  profileComplete: {
+    type: Boolean,
+    default: false
   },
   role: {
     type: String,
