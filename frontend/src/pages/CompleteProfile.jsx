@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { completeGoogleSignup } from "../services/authService";
 import { useAuth } from "../context/authContext";
-import logo from "../assets/react.svg";
+import logo from "../assets/icon.png";
 
 function CompleteProfile() {
   const [phone, setPhone] = useState("");
