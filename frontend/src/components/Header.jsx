@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import logo from '../assets/react.svg';
+import logo from '../assets/icon.png';
 
 function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,10 +25,10 @@ function Header() {
     <header className={`fixed w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-gray-900/95 backdrop-blur-sm shadow-lg py-3' : 'bg-transparent py-5'}`}>
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center">
-          <div className="bg-red-600 p-2 rounded-lg shadow-md mr-3">
-            <img src={logo} alt="ServeUp Logo" className="h-8 w-8" />
+          <div className="rounded-lg mr-3">
+            <img src={logo} alt="ServeUp Logo" className="h-10 w-10" />
           </div>
-          <span className="text-2xl font-bold text-white">ServeUp</span>
+          <span className="text-3xl font-bold text-white">FuturePlay</span>
         </div>
 
         {/* Desktop Navigation */}

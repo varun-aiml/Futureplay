@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { verifyOTP, resendOTP } from "../services/authService";
 import { useAuth } from "../context/authContext";
-import logo from "../assets/react.svg";
+import logo from '../assets/logo.jpg';
 
 function OTPVerification() {
   const [otp, setOtp] = useState("");
