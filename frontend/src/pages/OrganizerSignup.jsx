@@ -53,7 +53,7 @@ function OrganizerSignup() {
     if (name === "password") {
       const strength = calculatePasswordStrength(value);
       setPasswordStrength(strength);
-      
+
       // Also update confirmPassword validation if it exists
       if (formData.confirmPassword) {
         validateField("confirmPassword", formData.confirmPassword);
@@ -310,7 +310,7 @@ function OrganizerSignup() {
                 htmlFor="name"
                 className="block text-sm font-medium text-gray-300"
               >
-                Full Name
+                Full Name <span className="text-red-500">*</span>
               </label>
               <div className="mt-1">
                 <input
@@ -321,7 +321,9 @@ function OrganizerSignup() {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.name ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    fieldErrors.name ? "border-red-500" : "border-gray-600"
+                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your full name"
                 />
               </div>
@@ -335,7 +337,7 @@ function OrganizerSignup() {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-300"
               >
-                Email address
+                Email <span className="text-red-500">*</span>
               </label>
               <div className="mt-1">
                 <input
@@ -346,7 +348,9 @@ function OrganizerSignup() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.email ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    fieldErrors.email ? "border-red-500" : "border-gray-600"
+                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your email"
                 />
               </div>
@@ -360,7 +364,7 @@ function OrganizerSignup() {
                 htmlFor="phone"
                 className="block text-sm font-medium text-gray-300"
               >
-                Phone Number
+                Phone <span className="text-red-500">*</span>
               </label>
               <div className="mt-1">
                 <input
@@ -371,7 +375,9 @@ function OrganizerSignup() {
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.phone ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    fieldErrors.phone ? "border-red-500" : "border-gray-600"
+                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your phone number"
                 />
               </div>
@@ -385,7 +391,7 @@ function OrganizerSignup() {
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-300"
               >
-                Password
+                Password <span className="text-red-500">*</span>
               </label>
               <div className="mt-1">
                 <input
@@ -396,12 +402,16 @@ function OrganizerSignup() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.password ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    fieldErrors.password ? "border-red-500" : "border-gray-600"
+                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Create a password"
                 />
               </div>
               {fieldErrors.password && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+                <p className="mt-1 text-xs text-red-500">
+                  {fieldErrors.password}
+                </p>
               )}
               {formData.password && (
                 <div className="mt-2">
@@ -441,7 +451,7 @@ function OrganizerSignup() {
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-gray-300"
               >
-                Confirm Password
+                Confirm Password <span className="text-red-500">*</span>
               </label>
               <div className="mt-1">
                 <input
@@ -452,12 +462,18 @@ function OrganizerSignup() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.confirmPassword ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    fieldErrors.confirmPassword
+                      ? "border-red-500"
+                      : "border-gray-600"
+                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Confirm your password"
                 />
               </div>
               {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmPassword}</p>
+                <p className="mt-1 text-xs text-red-500">
+                  {fieldErrors.confirmPassword}
+                </p>
               )}
             </div>
 

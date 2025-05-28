@@ -116,8 +116,11 @@ function OrganizerLogin() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-                Email address
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-300"
+              >
+                Email <span className="text-red-500">*</span>
               </label>
               <input
                 id="email"
@@ -138,8 +141,11 @@ function OrganizerLogin() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                Password
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-300"
+              >
+                Password <span className="text-red-500">*</span>
               </label>
               <input
                 id="password"
@@ -154,7 +160,9 @@ function OrganizerLogin() {
                 placeholder="Enter your password"
               />
               {fieldErrors.password && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+                <p className="mt-1 text-xs text-red-500">
+                  {fieldErrors.password}
+                </p>
               )}
             </div>
 
@@ -168,11 +176,17 @@ function OrganizerLogin() {
                   onChange={() => setRememberMe((prev) => !prev)}
                   className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                 />
-                <label htmlFor="remember-me" className="ml-2 text-sm text-gray-300">
+                <label
+                  htmlFor="remember-me"
+                  className="ml-2 text-sm text-gray-300"
+                >
                   Remember me
                 </label>
               </div>
-              <Link to="/organizer/signup" className="text-sm text-red-500 hover:text-red-400">
+              <Link
+                to="/organizer/signup"
+                className="text-sm text-red-500 hover:text-red-400"
+              >
                 Don’t have an account?
               </Link>
             </div>
@@ -225,10 +239,22 @@ function OrganizerLogin() {
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48">
                 <g>
-                  <path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.23l6.85-6.85C36.68 2.64 30.73 0 24 0 14.82 0 6.71 5.8 2.69 14.09l7.98 6.2C12.13 13.09 17.61 9.5 24 9.5z" />
-                  <path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.53 2.87-2.13 5.3-4.54 6.94l7.02 5.46C43.98 37.18 46.1 31.34 46.1 24.55z" />
-                  <path fill="#FBBC05" d="M9.67 28.29a14.5 14.5 0 010-8.58l-7.98-6.2a24 24 0 000 21.03l7.98-6.25z" />
-                  <path fill="#EA4335" d="M24 48c6.48 0 11.91-2.15 15.88-5.85l-7.02-5.46c-2.02 1.35-4.6 2.16-8.86 2.16-6.39 0-11.87-3.59-14.33-8.78l-7.98 6.25C6.71 42.2 14.82 48 24 48z" />
+                  <path
+                    fill="#4285F4"
+                    d="M24 9.5c3.54 0 6.7 1.22 9.19 3.23l6.85-6.85C36.68 2.64 30.73 0 24 0 14.82 0 6.71 5.8 2.69 14.09l7.98 6.2C12.13 13.09 17.61 9.5 24 9.5z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.53 2.87-2.13 5.3-4.54 6.94l7.02 5.46C43.98 37.18 46.1 31.34 46.1 24.55z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M9.67 28.29a14.5 14.5 0 010-8.58l-7.98-6.2a24 24 0 000 21.03l7.98-6.25z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M24 48c6.48 0 11.91-2.15 15.88-5.85l-7.02-5.46c-2.02 1.35-4.6 2.16-8.86 2.16-6.39 0-11.87-3.59-14.33-8.78l-7.98 6.25C6.71 42.2 14.82 48 24 48z"
+                  />
                 </g>
               </svg>
               Sign in with Google
