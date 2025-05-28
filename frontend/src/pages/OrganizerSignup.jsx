@@ -18,15 +18,178 @@ function OrganizerSignup() {
   const navigate = useNavigate();
   const { loginUser } = useAuth();
 
+  const [fieldErrors, setFieldErrors] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+  });
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Real-time validation for name field - prevent numbers
+    if (name === "name" && /\d/.test(value)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        name: "Name cannot contain numbers",
+      }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear error when user starts typing
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: "",
+    }));
+
+    // Real-time validation for each field
+    validateField(name, value);
 
     // Check password strength when password field changes
     if (name === "password") {
       const strength = calculatePasswordStrength(value);
       setPasswordStrength(strength);
+      
+      // Also update confirmPassword validation if it exists
+      if (formData.confirmPassword) {
+        validateField("confirmPassword", formData.confirmPassword);
+      }
     }
+
+    // Real-time validation for confirm password
+    if (name === "confirmPassword") {
+      if (value !== formData.password) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          confirmPassword: "Passwords do not match",
+        }));
+      } else {
+        setFieldErrors((prev) => ({
+          ...prev,
+          confirmPassword: "",
+        }));
+      }
+    }
+
+    // Real-time validation for email format
+    if (name === "email") {
+      if (value.trim() === "") {
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: "Email is required",
+        }));
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: "Please enter a valid email address",
+        }));
+      }
+    }
+
+    // Real-time validation for phone number
+    if (name === "phone") {
+      if (value.trim() === "") {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "Phone number is required",
+        }));
+      } else if (!/^[0-9]{10,15}$/.test(value.replace(/[\s-]/g, ""))) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "Please enter a valid phone number",
+        }));
+      }
+    }
+  };
+
+  const validateField = (name, value) => {
+    let error = "";
+
+    switch (name) {
+      case "name":
+        if (value.trim() === "") {
+          error = "Name is required";
+        } else if (value.length < 2) {
+          error = "Name must be at least 2 characters";
+        } else if (/\d/.test(value)) {
+          error = "Name cannot contain numbers";
+        }
+        break;
+
+      case "email":
+        if (value.trim() === "") {
+          error = "Email is required";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          error = "Please enter a valid email address";
+        }
+        break;
+
+      case "phone":
+        if (value.trim() === "") {
+          error = "Phone number is required";
+        } else if (!/^[0-9]{10,15}$/.test(value.replace(/[\s-]/g, ""))) {
+          error = "Please enter a valid phone number";
+        }
+        break;
+
+      case "password":
+        if (value === "") {
+          error = "Password is required";
+        } else if (value.length < 8) {
+          error = "Password must be at least 8 characters";
+        } else if (passwordStrength < 2) {
+          error = "Password is too weak";
+        }
+
+        // Also update confirmPassword validation if it exists
+        if (formData.confirmPassword && value !== formData.confirmPassword) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            confirmPassword: "Passwords do not match",
+          }));
+        } else if (formData.confirmPassword) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            confirmPassword: "",
+          }));
+        }
+        break;
+
+      case "confirmPassword":
+        if (value === "") {
+          error = "Please confirm your password";
+        } else if (value !== formData.password) {
+          error = "Passwords do not match";
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: error,
+    }));
+
+    return error === "";
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+
+    // Validate each field
+    Object.keys(formData).forEach((field) => {
+      if (!validateField(field, formData[field])) {
+        isValid = false;
+      }
+    });
+
+    return isValid;
   };
 
   const calculatePasswordStrength = (password) => {
@@ -77,13 +240,7 @@ function OrganizerSignup() {
     setError("");
 
     // Validate form
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (passwordStrength < 2) {
-      setError("Please use a stronger password");
+    if (!validateForm()) {
       return;
     }
 
@@ -104,9 +261,17 @@ function OrganizerSignup() {
       // Redirect to OTP verification
       navigate("/organizer/verify-otp");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Registration failed. Please try again."
-      );
+      if (err.response?.data?.message.includes("email already exists")) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: "Email already exists",
+        }));
+      } else {
+        setError(
+          err.response?.data?.message ||
+            "Registration failed. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -156,10 +321,13 @@ function OrganizerSignup() {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.name ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your full name"
                 />
               </div>
+              {fieldErrors.name && (
+                <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>
+              )}
             </div>
 
             <div>
@@ -178,10 +346,13 @@ function OrganizerSignup() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.email ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your email"
                 />
               </div>
+              {fieldErrors.email && (
+                <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -200,10 +371,13 @@ function OrganizerSignup() {
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.phone ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Enter your phone number"
                 />
               </div>
+              {fieldErrors.phone && (
+                <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>
+              )}
             </div>
 
             <div>
@@ -222,10 +396,13 @@ function OrganizerSignup() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.password ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Create a password"
                 />
               </div>
+              {fieldErrors.password && (
+                <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+              )}
               {formData.password && (
                 <div className="mt-2">
                   <div className="flex items-center justify-between mb-1">
@@ -275,17 +452,13 @@ function OrganizerSignup() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                  className={`appearance-none block w-full px-3 py-2 border ${fieldErrors.confirmPassword ? 'border-red-500' : 'border-gray-600'} rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
                   placeholder="Confirm your password"
                 />
               </div>
-              {formData.password &&
-                formData.confirmPassword &&
-                formData.password !== formData.confirmPassword && (
-                  <p className="mt-1 text-xs text-red-500">
-                    Passwords do not match
-                  </p>
-                )}
+              {fieldErrors.confirmPassword && (
+                <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmPassword}</p>
+              )}
             </div>
 
             <div>
