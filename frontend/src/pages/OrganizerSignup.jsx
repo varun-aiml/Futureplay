@@ -15,6 +15,9 @@ function OrganizerSignup() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [step, setStep] = useState(1);
   const navigate = useNavigate();
   const { loginUser } = useAuth();
 
@@ -239,6 +242,20 @@ function OrganizerSignup() {
     e.preventDefault();
     setError("");
 
+    if (step === 1) {
+      const isEmailValid = validateField("email", formData.email);
+      const isPasswordValid = validateField("password", formData.password);
+      const isConfirmPasswordValid = validateField(
+        "confirmPassword",
+        formData.confirmPassword
+      );
+
+      if (isEmailValid && isPasswordValid && isConfirmPasswordValid) {
+        setStep(2);
+      }
+      return;
+    }
+
     // Validate form
     if (!validateForm()) {
       return;
@@ -266,6 +283,7 @@ function OrganizerSignup() {
           ...prev,
           email: "Email already exists",
         }));
+        setStep(1);
       } else {
         setError(
           err.response?.data?.message ||
@@ -289,10 +307,14 @@ function OrganizerSignup() {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-          Create an Organizer Account
+          Streamline Your Tournaments — Stress-Free
         </h2>
         <p className="mt-2 text-center text-sm text-gray-400">
-          Start managing tournaments with ServeUp
+          Plan, manage, and track tournaments effortlessly with ServeUp
+        </p>
+        <p className="mt-1 text-center text-xs text-gray-500">
+          Built for competitive organizers • Transparent pricing • Cancel
+          anytime
         </p>
       </div>
 
@@ -304,184 +326,372 @@ function OrganizerSignup() {
             </div>
           )}
 
+          {/* Google Sign In - Moved to top as recommended */}
+          <div className="mb-6">
+            <button
+              onClick={() => {
+                window.location.href = "http://localhost:5000/api/auth/google";
+              }}
+              className="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50 text-gray-800 font-medium transition"
+            >
+              <svg
+                width="18"
+                height="18"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 48 48"
+                className="mr-2"
+              >
+                <path
+                  fill="#FFC107"
+                  d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
+                />
+                <path
+                  fill="#FF3D00"
+                  d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
+                />
+                <path
+                  fill="#4CAF50"
+                  d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
+                />
+                <path
+                  fill="#1976D2"
+                  d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
+                />
+              </svg>
+              Sign up with Google
+            </button>
+            <div className="text-xs text-center mt-1 text-gray-400">
+              Fastest way to get started • No password needed
+            </div>
+          </div>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-gray-800 text-gray-400">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1">
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    fieldErrors.name ? "border-red-500" : "border-gray-600"
-                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
-                  placeholder="Enter your full name"
-                />
-              </div>
-              {fieldErrors.name && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Email <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    fieldErrors.email ? "border-red-500" : "border-gray-600"
-                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
-                  placeholder="Enter your email"
-                />
-              </div>
-              {fieldErrors.email && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Phone <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1">
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    fieldErrors.phone ? "border-red-500" : "border-gray-600"
-                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
-                  placeholder="Enter your phone number"
-                />
-              </div>
-              {fieldErrors.phone && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    fieldErrors.password ? "border-red-500" : "border-gray-600"
-                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
-                  placeholder="Create a password"
-                />
-              </div>
-              {fieldErrors.password && (
-                <p className="mt-1 text-xs text-red-500">
-                  {fieldErrors.password}
-                </p>
-              )}
-              {formData.password && (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-xs text-gray-400">
-                      Password strength:
-                    </div>
-                    <div
-                      className="text-xs font-medium"
-                      style={{
-                        color:
-                          passwordStrength >= 3
-                            ? "#10B981"
-                            : passwordStrength >= 2
-                            ? "#F59E0B"
-                            : "#EF4444",
-                      }}
-                    >
-                      {getStrengthText()}
-                    </div>
-                  </div>
-                  <div className="h-1 w-full bg-gray-600 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${getStrengthColor()}`}
-                      style={{ width: `${(passwordStrength / 4) * 100}%` }}
-                    ></div>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-400">
-                    Use 8+ characters with a mix of letters, numbers & symbols
-                  </div>
+            {/* Step indicator */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div
+                  className={`rounded-full h-8 w-8 flex items-center justify-center ${
+                    step === 1 ? "bg-red-600" : "bg-gray-600"
+                  } text-white font-medium`}
+                >
+                  1
                 </div>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Confirm Password <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    fieldErrors.confirmPassword
-                      ? "border-red-500"
-                      : "border-gray-600"
-                  } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
-                  placeholder="Confirm your password"
-                />
+                <div
+                  className={`h-1 w-10 ${
+                    step === 1 ? "bg-red-600" : "bg-gray-600"
+                  }`}
+                ></div>
+                <div
+                  className={`rounded-full h-8 w-8 flex items-center justify-center ${
+                    step === 2 ? "bg-red-600" : "bg-gray-600"
+                  } text-white font-medium`}
+                >
+                  2
+                </div>
               </div>
-              {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-500">
-                  {fieldErrors.confirmPassword}
-                </p>
-              )}
+              <div className="text-sm text-gray-400">Step {step} of 2</div>
             </div>
 
-            <div>
+            {step === 1 ? (
+              <>
+                {/* Step 1: Email and Password */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-300"
+                  >
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        fieldErrors.email ? "border-red-500" : "border-gray-600"
+                      } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  {fieldErrors.email && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {fieldErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-300"
+                  >
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1 relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      value={formData.password}
+                      onChange={handleChange}
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        fieldErrors.password
+                          ? "border-red-500"
+                          : "border-gray-600"
+                      } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm pr-10`}
+                      placeholder="Create a password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {fieldErrors.password && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {fieldErrors.password}
+                    </p>
+                  )}
+                  {formData.password && (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-xs text-gray-400">
+                          Password strength:
+                        </div>
+                        <div
+                          className="text-xs font-medium"
+                          style={{
+                            color:
+                              passwordStrength >= 3
+                                ? "#10B981"
+                                : passwordStrength >= 2
+                                ? "#F59E0B"
+                                : "#EF4444",
+                          }}
+                        >
+                          {getStrengthText()}
+                        </div>
+                      </div>
+                      <div className="h-1 w-full bg-gray-600 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${getStrengthColor()}`}
+                          style={{ width: `${(passwordStrength / 4) * 100}%` }}
+                        ></div>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-400">
+                        Use 8+ characters with a mix of letters, numbers &
+                        symbols
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="confirmPassword"
+                    className="block text-sm font-medium text-gray-300"
+                  >
+                    Confirm Password <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1 relative">
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        fieldErrors.confirmPassword
+                          ? "border-red-500"
+                          : "border-gray-600"
+                      } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm pr-10`}
+                      placeholder="Confirm your password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {fieldErrors.confirmPassword && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {fieldErrors.confirmPassword}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Step 2: Personal Information */}
+                <div>
+                  <label
+                    htmlFor="name"
+                    className="block text-sm font-medium text-gray-300"
+                  >
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      autoComplete="name"
+                      required
+                      value={formData.name}
+                      onChange={handleChange}
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        fieldErrors.name ? "border-red-500" : "border-gray-600"
+                      } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  {fieldErrors.name && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {fieldErrors.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-300"
+                  >
+                    Phone <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      autoComplete="tel"
+                      required
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        fieldErrors.phone ? "border-red-500" : "border-gray-600"
+                      } rounded-md shadow-sm placeholder-gray-500 bg-gray-700 text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm`}
+                      placeholder="Enter your phone number"
+                    />
+                  </div>
+                  {fieldErrors.phone && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {fieldErrors.phone}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-between">
+              {step === 2 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="py-2 px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  Back
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                className={`${
+                  step === 2 ? "w-auto" : "w-full"
+                } flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
                   isLoading
                     ? "bg-red-700 cursor-not-allowed"
                     : "bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
@@ -509,58 +719,14 @@ function OrganizerSignup() {
                     ></path>
                   </svg>
                 ) : null}
-                {isLoading ? "Creating account..." : "Create account"}
+                {isLoading
+                  ? "Creating account..."
+                  : step === 1
+                  ? "Continue"
+                  : "Create My Free Organizer Account"}
               </button>
             </div>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-600"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-800 text-gray-400">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={() => {
-                  window.location.href =
-                    "http://localhost:5000/api/auth/google";
-                }}
-                className="flex items-center justify-center gap-2 bg-black hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-full transition duration-300"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 48 48"
-                >
-                  <path
-                    fill="#FFC107"
-                    d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
-                  />
-                  <path
-                    fill="#FF3D00"
-                    d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
-                  />
-                  <path
-                    fill="#4CAF50"
-                    d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
-                  />
-                  <path
-                    fill="#1976D2"
-                    d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
-                  />
-                </svg>
-                Sign up with Google
-              </button>
-            </div>
-          </div>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-400">
@@ -571,6 +737,83 @@ function OrganizerSignup() {
               >
                 Sign in
               </Link>
+            </p>
+          </div>
+
+          {/* Trust indicators */}
+          <div className="mt-6 pt-5 border-t border-gray-700">
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center text-sm text-gray-400">
+                <svg
+                  className="w-5 h-5 mr-2 text-green-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+                <span>Easy to Use</span>
+              </div>
+              <div className="flex items-center text-sm text-gray-400">
+                <svg
+                  className="w-5 h-5 mr-2 text-green-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  ></path>
+                </svg>
+                <span>Your Data is Secure</span>
+              </div>
+              <div className="flex items-center text-sm text-gray-400">
+                <svg
+                  className="w-5 h-5 mr-2 text-green-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  ></path>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  ></path>
+                </svg>
+                <span>Built by Tournament Organizers</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 text-center text-xs text-gray-500">
+            <p>Your data is encrypted and secure. We never share your info.</p>
+            <p className="mt-1">
+              <a href="#" className="text-red-400 hover:text-red-300">
+                Privacy Policy
+              </a>{" "}
+              •
+              <a href="#" className="text-red-400 hover:text-red-300 ml-2">
+                Terms of Use
+              </a>{" "}
+              •
+              <a href="#" className="text-red-400 hover:text-red-300 ml-2">
+                Contact Support
+              </a>
             </p>
           </div>
         </div>
