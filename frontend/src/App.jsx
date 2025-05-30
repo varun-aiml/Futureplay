@@ -12,6 +12,8 @@ import OTPVerification from "./pages/OTPVerification";
 import CompleteProfile from "./pages/CompleteProfile";
 import PrivateRoute from "./components/PrivateRoute";
 import OrganizerHome from "./pages/OrganizerHome";
+import Tournaments from "./pages/Tournaments";
+import CreateTournament from "./pages/CreateTournament";
 
 function App() {
   return (
@@ -35,6 +37,22 @@ function App() {
             element={
               <PrivateRoute>
                 <OrganizerHome />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/organizer/tournaments"
+            element={
+              <PrivateRoute>
+                <Tournaments />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/organizer/tournaments/create"
+            element={
+              <PrivateRoute>
+                <CreateTournament />
               </PrivateRoute>
             }
           />
