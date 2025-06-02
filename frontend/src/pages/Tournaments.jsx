@@ -35,6 +35,7 @@ const Tournaments = () => {
     }
     return true; // All tab
   });
+  console.log(filteredTournaments);
 
   return (
     <OrganizerLayout>
@@ -132,6 +133,10 @@ const Tournaments = () => {
                     src={tournament.posterUrl || 'https://via.placeholder.com/400x200?text=Tournament+Poster'}
                     alt={tournament.name}
                     className="w-full h-full object-cover"
+                    // onError={(e) => {
+                    //   console.error('Image failed to load:', e.target.src);
+                    //   e.target.src = 'https://via.placeholder.com/400x200?text=Image+Error';
+                    // }}
                   />
                 </div>
                 <div className="p-5">

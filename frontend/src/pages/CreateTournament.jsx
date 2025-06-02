@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import OrganizerLayout from "../components/OrganizerLayout";
-import { createTournament } from "../services/tournamentService";
+import { createTournament, updateTournament } from "../services/tournamentService";
 import {
   MapContainer,
   TileLayer,
@@ -11,6 +11,8 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { useParams } from 'react-router-dom';
+import { getTournamentById } from '../services/tournamentService';
 
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -53,7 +55,9 @@ const LocationMarker = ({
 };
 
 const CreateTournament = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const [isEditMode, setIsEditMode] = useState(false);
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +66,7 @@ const CreateTournament = () => {
   const [mapVisible, setMapVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [events, setEvents] = useState([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -159,41 +164,100 @@ const CreateTournament = () => {
     return Object.keys(errors).length === 0;
   };
 
+  useEffect(() => {
+    // If we have an ID, we're in edit mode
+    if (id) {
+      setIsEditMode(true);
+      fetchTournamentData();
+    }
+  }, [id]);
+
+  const fetchTournamentData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await getTournamentById(id);
+      const tournament = response.data.data;
+      
+      // Populate form with tournament data
+      setFormData({
+        name: tournament.name,
+        description: tournament.description,
+        location: tournament.location,
+        registrationDeadline: formatDateForInput(new Date(tournament.registrationDeadline)),
+        startDate: formatDateForInput(new Date(tournament.startDate)),
+        endDate: formatDateForInput(new Date(tournament.endDate)),
+        events: tournament.events || [],
+      });
+      
+      // Set events
+      setEvents(tournament.events || []);
+      
+      // Handle poster preview if exists
+      if (tournament.posterUrl) {
+        setPosterPreview(tournament.posterUrl);
+      }
+      
+      setIsLoading(false);
+    } catch (error) {
+      setError('Failed to fetch tournament data');
+      setIsLoading(false);
+    }
+  };
+
+  const validateEvents = () => {
+    const requiredFields = ['name', 'maxParticipants', 'entryFee', 'eventType', 'matchType'];
+    
+    for (const event of formData.events) {
+      for (const field of requiredFields) {
+        if (!event[field] || event[field] === '') {
+          setError(`Event ${event.name || 'unnamed'} is missing ${field}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validate form
-    if (!validateForm()) {
-      setError("Please fix the errors before submitting");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-
+    
+    if (!validateForm() || !validateEvents()) return;
+    
     try {
-      // Create FormData for file upload
-      const tournamentFormData = new FormData();
-
+      setIsLoading(true);
+      setError('');
+      
+      const formDataObj = new FormData();
+      
       // Append all form fields
-      Object.keys(formData).forEach((key) => {
-        if (key !== "events") {
-          tournamentFormData.append(key, formData[key]);
+      Object.keys(formData).forEach(key => {
+        if (key !== 'events') { // Don't append events here
+          formDataObj.append(key, formData[key]);
         }
       });
-
-      // Append poster file if exists
+      
+      // Append poster if selected
       if (posterFile) {
-        tournamentFormData.append("poster", posterFile);
+        formDataObj.append('poster', posterFile);
       }
-
-      // Append events as JSON string
-      tournamentFormData.append("events", JSON.stringify(formData.events));
-
-      const response = await createTournament(tournamentFormData);
-      navigate(`/organizer/tournaments/${response.data._id}`);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to create tournament");
+      
+      // Append events from the events state
+      formDataObj.append('events', JSON.stringify(formData.events));
+      
+      let response;
+      if (isEditMode) {
+        // Update existing tournament
+        response = await updateTournament(id, formDataObj);
+      } else {
+        // Create new tournament
+        response = await createTournament(formDataObj);
+      }
+      
+      navigate(`/organizer/tournaments/${response.data.data._id}`);
+    } catch (error) {
+      console.error('Update error:', error);
+      console.error('Error response:', error.response?.data);
+      setError(error.response?.data?.message || 'Failed to save tournament');
       setIsLoading(false);
     }
   };
@@ -206,38 +270,52 @@ const CreateTournament = () => {
   };
 
   const addEvent = () => {
+    const newEvent = {
+      name: "",
+      maxParticipants: "",
+      entryFee: "",
+      eventType: "",
+      matchType: "",
+      allowBooking: false,
+      discount: "0",
+    };
+    
+    // Update formData.events
     setFormData((prev) => ({
       ...prev,
-      events: [
-        ...prev.events,
-        {
-          name: "",
-          maxParticipants: "",
-          entryFee: "",
-          eventType: "",
-          matchType: "",
-          allowBooking: false,
-          discount: "0",
-        },
-      ],
+      events: [...prev.events, newEvent],
     }));
+    
+    // Also update the events state
+    setEvents((prev) => [...prev, newEvent]);
   };
 
   const updateEvent = (index, field, value) => {
+    // Update in formData.events
     const updatedEvents = [...formData.events];
     updatedEvents[index][field] = value;
     setFormData((prev) => ({
       ...prev,
       events: updatedEvents,
     }));
+    
+    // Also update in events state
+    const updatedEventsState = [...events];
+    updatedEventsState[index][field] = value;
+    setEvents(updatedEventsState);
   };
-
+  
   const removeEvent = (index) => {
+    // Update in formData.events
     const updatedEvents = formData.events.filter((_, i) => i !== index);
     setFormData((prev) => ({
       ...prev,
       events: updatedEvents,
     }));
+    
+    // Also update in events state
+    const updatedEventsState = events.filter((_, i) => i !== index);
+    setEvents(updatedEventsState);
   };
 
   const nextStep = () => {
@@ -259,8 +337,10 @@ const CreateTournament = () => {
   return (
     <OrganizerLayout>
       <div className="container mx-auto max-w-4xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Create Tournament</h1>
+        <div className="container mx-auto py-6">
+        <h1 className="text-2xl font-bold text-white mb-6">
+          {isEditMode ? 'Edit Tournament' : 'Create Tournament'}
+        </h1>
           <p className="text-gray-400">
             Fill in the details to create a new tournament
           </p>
@@ -871,52 +951,22 @@ const CreateTournament = () => {
                     Back
                   </button>
                   <button
-                    type="submit"
-                    disabled={isLoading || formData.events.length === 0}
-                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg
-                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        Create Tournament
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 ml-1"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </>
-                    )}
-                  </button>
+          type="submit"
+          disabled={isLoading || formData.events.length === 0}
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center">
+              <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {isEditMode ? 'Updating...' : 'Creating...'}
+            </div>
+          ) : (
+            isEditMode ? 'Update Tournament' : 'Create Tournament'
+          )}
+        </button>
                 </div>
               </div>
             )}

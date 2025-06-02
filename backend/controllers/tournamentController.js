@@ -82,7 +82,7 @@ exports.createTournament = async (req, res) => {
     
     // Handle file upload if present
     if (req.file) {
-      req.body.posterUrl = req.file.path;
+      req.body.posterUrl = req.file.secure_url || req.file.path;
     }
     
     // Parse events JSON if it exists
@@ -132,7 +132,7 @@ exports.updateTournament = async (req, res) => {
         const publicId = tournament.posterUrl.split('/').pop().split('.')[0];
         await cloudinary.uploader.destroy(`tournaments/${publicId}`);
       }
-      req.body.posterUrl = req.file.path;
+      req.body.posterUrl = req.file.secure_url || req.file.path;
     }
     
     // Parse events JSON if it exists
@@ -150,10 +150,12 @@ exports.updateTournament = async (req, res) => {
       data: tournament
     });
   } catch (error) {
+    console.error('Tournament update error:', error);
     res.status(400).json({
       success: false,
       message: 'Failed to update tournament',
-      error: error.message
+      error: error.message,
+      details: error.errors // This will include validation errors
     });
   }
 };
@@ -184,7 +186,7 @@ exports.deleteTournament = async (req, res) => {
       await cloudinary.uploader.destroy(`tournaments/${publicId}`);
     }
 
-    await tournament.remove();
+    await Tournament.deleteOne({ _id: req.params.id });
 
     res.status(200).json({
       success: true,

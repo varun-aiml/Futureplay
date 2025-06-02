@@ -14,6 +14,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import OrganizerHome from "./pages/OrganizerHome";
 import Tournaments from "./pages/Tournaments";
 import CreateTournament from "./pages/CreateTournament";
+import TournamentDetail from "./pages/TournamentDetail";
 
 function App() {
   return (
@@ -50,6 +51,24 @@ function App() {
           />
           <Route
             path="/organizer/tournaments/create"
+            element={
+              <PrivateRoute>
+                <CreateTournament />
+              </PrivateRoute>
+            }
+          />
+          {/* Add this new route for tournament details */}
+          <Route
+            path="/organizer/tournaments/:id"
+            element={
+              <PrivateRoute>
+                <TournamentDetail />
+              </PrivateRoute>
+            }
+          />
+          {/* Add this new route for editing tournaments */}
+          <Route
+            path="/organizer/tournaments/edit/:id"
             element={
               <PrivateRoute>
                 <CreateTournament />
