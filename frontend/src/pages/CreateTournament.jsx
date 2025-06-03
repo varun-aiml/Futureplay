@@ -1,18 +1,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import OrganizerLayout from "../components/OrganizerLayout";
-import { createTournament, updateTournament } from "../services/tournamentService";
+import {
+  createTournament,
+  updateTournament,
+} from "../services/tournamentService";
 import {
   MapContainer,
   TileLayer,
   Marker,
   useMapEvents,
   Popup,
+  useMap
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { useParams } from 'react-router-dom';
-import { getTournamentById } from '../services/tournamentService';
+import { useParams } from "react-router-dom";
+import { getTournamentById } from "../services/tournamentService";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -52,6 +58,18 @@ const LocationMarker = ({
       <Popup>Selected Location</Popup>
     </Marker>
   ) : null;
+};
+
+const MapUpdater = ({ center }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (center) {
+      map.setView(center, map.getZoom());
+    }
+  }, [center, map]);
+  
+  return null;
 };
 
 const CreateTournament = () => {
@@ -177,40 +195,48 @@ const CreateTournament = () => {
       setIsLoading(true);
       const response = await getTournamentById(id);
       const tournament = response.data.data;
-      
+
       // Populate form with tournament data
       setFormData({
         name: tournament.name,
         description: tournament.description,
         location: tournament.location,
-        registrationDeadline: formatDateForInput(new Date(tournament.registrationDeadline)),
+        registrationDeadline: formatDateForInput(
+          new Date(tournament.registrationDeadline)
+        ),
         startDate: formatDateForInput(new Date(tournament.startDate)),
         endDate: formatDateForInput(new Date(tournament.endDate)),
         events: tournament.events || [],
       });
-      
+
       // Set events
       setEvents(tournament.events || []);
-      
+
       // Handle poster preview if exists
       if (tournament.posterUrl) {
         setPosterPreview(tournament.posterUrl);
       }
-      
+
       setIsLoading(false);
     } catch (error) {
-      setError('Failed to fetch tournament data');
+      setError("Failed to fetch tournament data", error);
       setIsLoading(false);
     }
   };
 
   const validateEvents = () => {
-    const requiredFields = ['name', 'maxParticipants', 'entryFee', 'eventType', 'matchType'];
-    
+    const requiredFields = [
+      "name",
+      "maxParticipants",
+      "entryFee",
+      "eventType",
+      "matchType",
+    ];
+
     for (const event of formData.events) {
       for (const field of requiredFields) {
-        if (!event[field] || event[field] === '') {
-          setError(`Event ${event.name || 'unnamed'} is missing ${field}`);
+        if (!event[field] || event[field] === "") {
+          setError(`Event ${event.name || "unnamed"} is missing ${field}`);
           return false;
         }
       }
@@ -220,44 +246,48 @@ const CreateTournament = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm() || !validateEvents()) return;
-    
+
     try {
       setIsLoading(true);
-      setError('');
-      
+      setError("");
+
       const formDataObj = new FormData();
-      
+
       // Append all form fields
-      Object.keys(formData).forEach(key => {
-        if (key !== 'events') { // Don't append events here
+      Object.keys(formData).forEach((key) => {
+        if (key !== "events") {
+          // Don't append events here
           formDataObj.append(key, formData[key]);
         }
       });
-      
+
       // Append poster if selected
       if (posterFile) {
-        formDataObj.append('poster', posterFile);
+        formDataObj.append("poster", posterFile);
       }
-      
+
       // Append events from the events state
-      formDataObj.append('events', JSON.stringify(formData.events));
-      
+      formDataObj.append("events", JSON.stringify(formData.events));
+
       let response;
       if (isEditMode) {
         // Update existing tournament
         response = await updateTournament(id, formDataObj);
+        toast.success("Tournament updated successfully!");
       } else {
         // Create new tournament
         response = await createTournament(formDataObj);
+        toast.success("Tournament created successfully!");
       }
-      
+
       navigate(`/organizer/tournaments/${response.data.data._id}`);
     } catch (error) {
-      console.error('Update error:', error);
-      console.error('Error response:', error.response?.data);
-      setError(error.response?.data?.message || 'Failed to save tournament');
+      console.error("Update error:", error);
+      console.error("Error response:", error.response?.data);
+      setError(error.response?.data?.message || "Failed to save tournament");
+      toast.error(error.response?.data?.message);
       setIsLoading(false);
     }
   };
@@ -279,13 +309,13 @@ const CreateTournament = () => {
       allowBooking: false,
       discount: "0",
     };
-    
+
     // Update formData.events
     setFormData((prev) => ({
       ...prev,
       events: [...prev.events, newEvent],
     }));
-    
+
     // Also update the events state
     setEvents((prev) => [...prev, newEvent]);
   };
@@ -298,13 +328,13 @@ const CreateTournament = () => {
       ...prev,
       events: updatedEvents,
     }));
-    
+
     // Also update in events state
     const updatedEventsState = [...events];
     updatedEventsState[index][field] = value;
     setEvents(updatedEventsState);
   };
-  
+
   const removeEvent = (index) => {
     // Update in formData.events
     const updatedEvents = formData.events.filter((_, i) => i !== index);
@@ -312,7 +342,7 @@ const CreateTournament = () => {
       ...prev,
       events: updatedEvents,
     }));
-    
+
     // Also update in events state
     const updatedEventsState = events.filter((_, i) => i !== index);
     setEvents(updatedEventsState);
@@ -329,18 +359,57 @@ const CreateTournament = () => {
 
   const prevStep = () => setStep(step - 1);
 
-  // Function to toggle map visibility
-  const toggleMap = () => {
-    setMapVisible(!mapVisible);
+  const handleLocationSearch = () => {
+    if (formData.location.trim()) {
+      setIsLoading(true);
+      // Forward geocode using Nominatim
+      fetch(
+        `http://localhost:5000/api/reverse-geocode/forward-geocode?q=${encodeURIComponent(
+          formData.location
+        )}`
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.length > 0) {
+            const { lat, lon } = data[0];
+            setSelectedLocation([lat, lon]);
+            setMapVisible(true); // Show map with the found location
+            // Update form with formatted address if available
+            if (data[0].display_name) {
+              setFormData((prev) => ({
+                ...prev,
+                location: data[0].display_name,
+              }));
+            }
+          } else {
+            // No results found
+            setError("Location not found. Please try a different search term.");
+            setTimeout(() => setError(""), 3000);
+          }
+        })
+        .catch((err) => {
+          console.error("Geocoding error:", err);
+          setError("Error searching for location. Please try again.");
+          setTimeout(() => setError(""), 3000);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
   };
 
   return (
     <OrganizerLayout>
-      <div className="container mx-auto max-w-4xl">
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+      />
+      <div className="container mx-auto max-w-4xl ">
         <div className="container mx-auto py-6">
-        <h1 className="text-2xl font-bold text-white mb-6">
-          {isEditMode ? 'Edit Tournament' : 'Create Tournament'}
-        </h1>
+          <h1 className="text-2xl font-bold text-white mb-6">
+            {isEditMode ? "Edit Tournament" : "Create Tournament"}
+          </h1>
           <p className="text-gray-400">
             Fill in the details to create a new tournament
           </p>
@@ -352,28 +421,30 @@ const CreateTournament = () => {
           </div>
         )}
 
-        <div className="bg-gray-800 rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-8 shadow-2xl border border-gray-700">
           {/* Progress Steps */}
           <div className="flex items-center justify-between mb-8">
             <div className="w-full flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${
                   step >= 1
-                    ? "bg-red-500 text-white"
+                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
                     : "bg-gray-700 text-gray-400"
                 }`}
               >
                 1
               </div>
               <div
-                className={`flex-1 h-1 mx-2 ${
-                  step >= 2 ? "bg-red-500" : "bg-gray-700"
+                className={`flex-1 h-1.5 mx-2 rounded-full ${
+                  step >= 2
+                    ? "bg-gradient-to-r from-red-500 to-red-600"
+                    : "bg-gray-700"
                 }`}
               ></div>
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${
                   step >= 2
-                    ? "bg-red-500 text-white"
+                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
                     : "bg-gray-700 text-gray-400"
                 }`}
               >
@@ -432,10 +503,8 @@ const CreateTournament = () => {
                     required
                     rows="4"
                     className={`w-full px-4 py-2 bg-gray-700 border ${
-                      formErrors.description
-                        ? "border-red-500"
-                        : "border-gray-600"
-                    } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-red-500`}
+                      formErrors.location ? "border-red-500" : "border-gray-600"
+                    } rounded-l-md text-white focus:outline-none focus:ring-2 focus:ring-red-500`}
                     placeholder="Provide details about your tournament..."
                   ></textarea>
                   {formErrors.description && (
@@ -460,6 +529,7 @@ const CreateTournament = () => {
                       name="location"
                       value={formData.location}
                       onChange={handleChange}
+                      onBlur={handleLocationSearch} // Add this line to trigger search when user leaves the field
                       required
                       className={`w-full px-4 py-2 bg-gray-700 border ${
                         formErrors.location
@@ -470,7 +540,7 @@ const CreateTournament = () => {
                     />
                     <button
                       type="button"
-                      onClick={toggleMap}
+                      onClick={handleLocationSearch} // Change this from toggleMap to handleLocationSearch
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-md transition duration-300"
                     >
                       <svg
@@ -516,6 +586,7 @@ const CreateTournament = () => {
                           setSelectedLocation={setSelectedLocation}
                           setFormData={setFormData}
                         />
+                        <MapUpdater center={selectedLocation} />
                       </MapContainer>
                       <p className="text-xs text-gray-400 mt-1">
                         Click on the map to select a location
@@ -951,22 +1022,40 @@ const CreateTournament = () => {
                     Back
                   </button>
                   <button
-          type="submit"
-          disabled={isLoading || formData.events.length === 0}
-          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center">
-              <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {isEditMode ? 'Updating...' : 'Creating...'}
-            </div>
-          ) : (
-            isEditMode ? 'Update Tournament' : 'Create Tournament'
-          )}
-        </button>
+                    type="submit"
+                    disabled={isLoading || formData.events.length === 0}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center">
+                        <svg
+                          className="animate-spin h-5 w-5 mr-3 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        {isEditMode ? "Updating..." : "Creating..."}
+                      </div>
+                    ) : isEditMode ? (
+                      "Update Tournament"
+                    ) : (
+                      "Create Tournament"
+                    )}
+                  </button>
                 </div>
               </div>
             )}

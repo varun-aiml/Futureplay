@@ -25,4 +25,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/forward-geocode', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ message: 'Query parameter is required' });
+    }
+
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+    const data = await response.json();
+
+    res.json(data);
+  } catch (error) {
+    console.error('Forward geocoding error:', error);
+    res.status(500).json({ message: 'Error processing geocoding request' });
+  }
+});
+
 module.exports = router;

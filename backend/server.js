@@ -41,6 +41,8 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/reverse-geocode', reverseGeocodeRoute);
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -52,7 +54,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.use('/api/reverse-geocode', reverseGeocodeRoute);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
