@@ -248,28 +248,6 @@ const CreateTournament = () => {
     setMapVisible(!mapVisible);
   };
 
-  const handleLocationSearch = (e) => {
-    e.preventDefault();
-    const query = formData.location;
-    
-    if (!query.trim()) return;
-    
-    fetch(`http://localhost:5000/api/geocode?q=${encodeURIComponent(query)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.lat && data.lon) {
-          setSelectedLocation([data.lat, data.lon]);
-          setMapVisible(true);
-        } else {
-          setError('Location not found');
-        }
-      })
-      .catch(err => {
-        console.error('Geocoding error:', err);
-        setError('Failed to search location');
-      });
-  };
-
   return (
     <OrganizerLayout>
       <div className="container mx-auto max-w-4xl">

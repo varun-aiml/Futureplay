@@ -12,6 +12,9 @@ export const getTournamentById = async (id) => {
   return response;
 };
 
+// Alias for getTournamentById for backward compatibility
+export const getTournament = getTournamentById;
+
 // Create a new tournament
 export const createTournament = async (tournamentData) => {
   const response = await api.post('/tournaments', tournamentData);
@@ -34,6 +37,14 @@ export const deleteTournament = async (id) => {
 export const addEvent = async (tournamentId, eventData) => {
   const response = await api.post(`/tournaments/${tournamentId}/events`, eventData);
   return response;
+};
+
+// Add multiple events to a tournament (calls addEvent for each event)
+export const addEvents = async (tournamentId, eventsData) => {
+  // Use Promise.all to wait for all events to be added
+  const promises = eventsData.map(eventData => addEvent(tournamentId, eventData));
+  const responses = await Promise.all(promises);
+  return responses[responses.length - 1]; // Return the last response
 };
 
 // Update an event

@@ -15,11 +15,14 @@ import OrganizerHome from "./pages/OrganizerHome";
 import Tournaments from "./pages/Tournaments";
 import CreateTournament from "./pages/CreateTournament";
 import TournamentDetail from "./pages/TournamentDetail";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <ToastContainer position="top-right" autoClose={3000} />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/organizer/login" element={<OrganizerLogin />} />
