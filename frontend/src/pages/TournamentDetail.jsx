@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import OrganizerLayout from "../components/OrganizerLayout";
 import { getTournamentById, addEvent } from "../services/tournamentService";
+import { updateEvent, deleteEvent } from "../services/tournamentService";
 import { toast } from "react-toastify";
 
 // Import modular components
@@ -25,6 +26,8 @@ const TournamentDetail = () => {
   const [showEventForm, setShowEventForm] = useState(false);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [eventError, setEventError] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentEventId, setCurrentEventId] = useState(null);
   const [newEvent, setNewEvent] = useState({
     name: "",
     eventType: "",
@@ -55,6 +58,114 @@ const TournamentDetail = () => {
     fetchTournament();
   }, [id]);
 
+  // Handle event click for editing
+const handleEventClick = (event) => {
+    setIsEditMode(true);
+    setCurrentEventId(event._id);
+    setNewEvent({
+      name: event.name,
+      eventType: event.eventType,
+      matchType: event.matchType,
+      maxParticipants: event.maxParticipants,
+      entryFee: event.entryFee,
+      discount: event.discount || "0",
+      allowBooking: event.allowBooking || false,
+    });
+    setShowEventForm(true);
+  };
+
+  // Handle event update
+const handleUpdateEvent = async (e) => {
+    e.preventDefault();
+  
+    // Validate required fields
+    if (
+      !newEvent.name ||
+      !newEvent.eventType ||
+      !newEvent.matchType ||
+      !newEvent.maxParticipants ||
+      !newEvent.entryFee
+    ) {
+      setEventError("Please fill in all required fields");
+      return;
+    }
+  
+    setIsCreatingEvent(true);
+    setEventError("");
+  
+    try {
+      const response = await updateEvent(id, currentEventId, newEvent);
+      const updatedTournament = response.data.data;
+  
+      // Update the tournament state with the updated tournament
+      setTournament(updatedTournament);
+  
+      // Reset form and hide it
+      setNewEvent({
+        name: "",
+        eventType: "",
+        matchType: "",
+        maxParticipants: "",
+        entryFee: "",
+        discount: "0",
+        allowBooking: false,
+      });
+      setShowEventForm(false);
+      setIsEditMode(false);
+      setCurrentEventId(null);
+  
+      // Show success message
+      toast.success("Event updated successfully!");
+    } catch (err) {
+      console.error("Error updating event:", err);
+      setEventError(err.response?.data?.message || "Failed to update event");
+      toast.error(err.response?.data?.message || "Failed to update event");
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
+  // Handle event deletion
+const handleDeleteEvent = async () => {
+    if (!window.confirm("Are you sure you want to delete this event?")) {
+      return;
+    }
+  
+    setIsCreatingEvent(true);
+  
+    try {
+      await deleteEvent(id, currentEventId);
+  
+      // Update the tournament state by removing the deleted event
+      setTournament((prev) => ({
+        ...prev,
+        events: prev.events.filter((event) => event._id !== currentEventId),
+      }));
+  
+      // Reset form and hide it
+      setNewEvent({
+        name: "",
+        eventType: "",
+        matchType: "",
+        maxParticipants: "",
+        entryFee: "",
+        discount: "0",
+        allowBooking: false,
+      });
+      setShowEventForm(false);
+      setIsEditMode(false);
+      setCurrentEventId(null);
+  
+      // Show success message
+      toast.success("Event deleted successfully!");
+    } catch (err) {
+      console.error("Error deleting event:", err);
+      toast.error(err.response?.data?.message || "Failed to delete event");
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
   const handleEdit = () => {
     navigate(`/organizer/tournaments/edit/${id}`);
   };
@@ -68,11 +179,26 @@ const TournamentDetail = () => {
     }));
   };
 
-  // Toggle event form visibility
-  const toggleEventForm = () => {
+  // Modify the toggleEventForm function
+const toggleEventForm = () => {
+    if (showEventForm && isEditMode) {
+      // If closing the form while in edit mode, reset to create mode
+      setIsEditMode(false);
+      setCurrentEventId(null);
+      setNewEvent({
+        name: "",
+        eventType: "",
+        matchType: "",
+        maxParticipants: "",
+        entryFee: "",
+        discount: "0",
+        allowBooking: false,
+      });
+    }
     setShowEventForm(!showEventForm);
     setEventError("");
   };
+  
 
   // Generate fixtures based on match type and number of teams
   const generateFixtures = () => {
@@ -342,14 +468,10 @@ const TournamentDetail = () => {
 
     // Validate required fields
     if (
-      !newEvent.name ||
-      !newEvent.eventType ||
-      !newEvent.matchType ||
-      !newEvent.maxParticipants ||
-      !newEvent.entryFee
+        isEditMode
     ) {
-      setEventError("Please fill in all required fields");
-      return;
+        handleUpdateEvent(e);
+        return; // Add this return statement to prevent continuing execution
     }
 
     setIsCreatingEvent(true);
@@ -493,28 +615,33 @@ const TournamentDetail = () => {
             </div>
 
             {/* Event Creation Form */}
-            {showEventForm && (
-              <EventForm
-                newEvent={newEvent}
-                handleEventInputChange={handleEventInputChange}
-                handleSubmitEvent={handleSubmitEvent}
-                isCreatingEvent={isCreatingEvent}
-                eventError={eventError}
-                toggleEventForm={toggleEventForm}
-                generateFixtures={generateFixtures}
-                setShowFixtureModal={setShowFixtureModal}
-              />
-            )}
+{showEventForm && (
+  <EventForm
+    event={newEvent}
+    handleEventInputChange={handleEventInputChange}
+    handleSubmitEvent={handleSubmitEvent}
+    isProcessing={isCreatingEvent}
+    eventError={eventError}
+    toggleEventForm={toggleEventForm}
+    generateFixtures={generateFixtures}
+    setShowFixtureModal={setShowFixtureModal}
+    isEditMode={isEditMode}
+    handleDeleteEvent={handleDeleteEvent}
+  />
+)}
 
-            {tournament.events && tournament.events.length > 0 ? (
-              <EventsList events={tournament.events} />
-            ) : (
-              <div className="bg-gray-800 rounded-xl p-6 text-center">
-                <p className="text-gray-400">
-                  No events added to this tournament yet.
-                </p>
-              </div>
-            )}
+{tournament.events && tournament.events.length > 0 ? (
+  <EventsList 
+    events={tournament.events} 
+    onEventClick={handleEventClick} 
+  />
+) : (
+  <div className="bg-gray-800 rounded-xl p-6 text-center">
+    <p className="text-gray-400">
+      No events added to this tournament yet.
+    </p>
+  </div>
+)}
           </div>
         )}
 
