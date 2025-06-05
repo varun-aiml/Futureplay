@@ -45,7 +45,7 @@ exports.getOrganizerTournaments = async (req, res) => {
 exports.getTournamentById = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -79,12 +79,12 @@ exports.createTournament = async (req, res) => {
   try {
     // Add organizer to the tournament data
     req.body.organizer = req.user._id;
-    
+
     // Handle file upload if present
     if (req.file) {
       req.body.posterUrl = req.file.secure_url || req.file.path;
     }
-    
+
     // Parse events JSON if it exists
     if (req.body.events && typeof req.body.events === 'string') {
       req.body.events = JSON.parse(req.body.events);
@@ -109,7 +109,7 @@ exports.createTournament = async (req, res) => {
 exports.updateTournament = async (req, res) => {
   try {
     let tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -134,7 +134,7 @@ exports.updateTournament = async (req, res) => {
       }
       req.body.posterUrl = req.file.secure_url || req.file.path;
     }
-    
+
     // Parse events JSON if it exists
     if (req.body.events && typeof req.body.events === 'string') {
       req.body.events = JSON.parse(req.body.events);
@@ -164,7 +164,7 @@ exports.updateTournament = async (req, res) => {
 exports.deleteTournament = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -205,7 +205,7 @@ exports.deleteTournament = async (req, res) => {
 exports.addEvent = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -241,7 +241,7 @@ exports.addEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -258,7 +258,7 @@ exports.updateEvent = async (req, res) => {
     }
 
     const eventIndex = tournament.events.findIndex(event => event._id.toString() === req.params.eventId);
-    
+
     if (eventIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -286,7 +286,7 @@ exports.updateEvent = async (req, res) => {
 exports.deleteEvent = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
-    
+
     if (!tournament) {
       return res.status(404).json({
         success: false,
@@ -313,6 +313,30 @@ exports.deleteEvent = async (req, res) => {
     res.status(400).json({
       success: false,
       message: 'Failed to delete event',
+      error: error.message
+    });
+  }
+};
+
+exports.getTopTournaments = async (req, res) => {
+  try {
+
+    const tournaments = await Tournament.find({
+      status: { $in: ['Upcoming', 'Completed'] }
+    })
+      .sort({ startDate: -1 })
+      .limit(5)
+      .select('name startDate endDate location posterUrl status'); // Select only needed fields
+
+    res.status(200).json({
+      success: true,
+      count: tournaments.length,
+      data: tournaments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
       error: error.message
     });
   }

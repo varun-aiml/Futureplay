@@ -58,3 +58,8 @@ export const deleteEvent = async (tournamentId, eventId) => {
   const response = await api.delete(`/tournaments/${tournamentId}/events/${eventId}`);
   return response;
 };
+
+export const getTopTournaments = async () => {
+  const response = await api.get('/tournaments/top');
+  return response;
+};
