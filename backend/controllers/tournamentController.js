@@ -363,5 +363,30 @@ exports.getTopTournaments = async (req, res) => {
   }
 };
 
+// Get a single tournament by ID (public endpoint)
+exports.getPublicTournamentById = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: tournament
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
 // Middleware for handling file uploads
 exports.uploadTournamentPoster = upload.single('poster');

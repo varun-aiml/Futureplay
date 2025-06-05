@@ -12,6 +12,7 @@ import TournamentDetails from "../components/tournament/TournamentDetails";
 import EventForm from "../components/tournament/EventForm";
 import EventsList from "../components/tournament/EventsList";
 import FixtureModal from "../components/tournament/FixtureModal";
+import TeamsView from "../components/tournament/TeamsView";
 
 const TournamentDetail = () => {
   const { id } = useParams();
@@ -59,7 +60,7 @@ const TournamentDetail = () => {
   }, [id]);
 
   // Handle event click for editing
-const handleEventClick = (event) => {
+  const handleEventClick = (event) => {
     setIsEditMode(true);
     setCurrentEventId(event._id);
     setNewEvent({
@@ -75,9 +76,9 @@ const handleEventClick = (event) => {
   };
 
   // Handle event update
-const handleUpdateEvent = async (e) => {
+  const handleUpdateEvent = async (e) => {
     e.preventDefault();
-  
+
     // Validate required fields
     if (
       !newEvent.name ||
@@ -89,17 +90,17 @@ const handleUpdateEvent = async (e) => {
       setEventError("Please fill in all required fields");
       return;
     }
-  
+
     setIsCreatingEvent(true);
     setEventError("");
-  
+
     try {
       const response = await updateEvent(id, currentEventId, newEvent);
       const updatedTournament = response.data.data;
-  
+
       // Update the tournament state with the updated tournament
       setTournament(updatedTournament);
-  
+
       // Reset form and hide it
       setNewEvent({
         name: "",
@@ -113,7 +114,7 @@ const handleUpdateEvent = async (e) => {
       setShowEventForm(false);
       setIsEditMode(false);
       setCurrentEventId(null);
-  
+
       // Show success message
       toast.success("Event updated successfully!");
     } catch (err) {
@@ -126,22 +127,22 @@ const handleUpdateEvent = async (e) => {
   };
 
   // Handle event deletion
-const handleDeleteEvent = async () => {
+  const handleDeleteEvent = async () => {
     if (!window.confirm("Are you sure you want to delete this event?")) {
       return;
     }
-  
+
     setIsCreatingEvent(true);
-  
+
     try {
       await deleteEvent(id, currentEventId);
-  
+
       // Update the tournament state by removing the deleted event
       setTournament((prev) => ({
         ...prev,
         events: prev.events.filter((event) => event._id !== currentEventId),
       }));
-  
+
       // Reset form and hide it
       setNewEvent({
         name: "",
@@ -155,7 +156,7 @@ const handleDeleteEvent = async () => {
       setShowEventForm(false);
       setIsEditMode(false);
       setCurrentEventId(null);
-  
+
       // Show success message
       toast.success("Event deleted successfully!");
     } catch (err) {
@@ -180,7 +181,7 @@ const handleDeleteEvent = async () => {
   };
 
   // Modify the toggleEventForm function
-const toggleEventForm = () => {
+  const toggleEventForm = () => {
     if (showEventForm && isEditMode) {
       // If closing the form while in edit mode, reset to create mode
       setIsEditMode(false);
@@ -198,7 +199,6 @@ const toggleEventForm = () => {
     setShowEventForm(!showEventForm);
     setEventError("");
   };
-  
 
   // Generate fixtures based on match type and number of teams
   const generateFixtures = () => {
@@ -467,11 +467,9 @@ const toggleEventForm = () => {
     e.preventDefault();
 
     // Validate required fields
-    if (
-        isEditMode
-    ) {
-        handleUpdateEvent(e);
-        return; // Add this return statement to prevent continuing execution
+    if (isEditMode) {
+      handleUpdateEvent(e);
+      return; // Add this return statement to prevent continuing execution
     }
 
     setIsCreatingEvent(true);
@@ -615,34 +613,38 @@ const toggleEventForm = () => {
             </div>
 
             {/* Event Creation Form */}
-{showEventForm && (
-  <EventForm
-    event={newEvent}
-    handleEventInputChange={handleEventInputChange}
-    handleSubmitEvent={handleSubmitEvent}
-    isProcessing={isCreatingEvent}
-    eventError={eventError}
-    toggleEventForm={toggleEventForm}
-    generateFixtures={generateFixtures}
-    setShowFixtureModal={setShowFixtureModal}
-    isEditMode={isEditMode}
-    handleDeleteEvent={handleDeleteEvent}
-  />
-)}
+            {showEventForm && (
+              <EventForm
+                event={newEvent}
+                handleEventInputChange={handleEventInputChange}
+                handleSubmitEvent={handleSubmitEvent}
+                isProcessing={isCreatingEvent}
+                eventError={eventError}
+                toggleEventForm={toggleEventForm}
+                generateFixtures={generateFixtures}
+                setShowFixtureModal={setShowFixtureModal}
+                isEditMode={isEditMode}
+                handleDeleteEvent={handleDeleteEvent}
+              />
+            )}
 
-{tournament.events && tournament.events.length > 0 ? (
-  <EventsList 
-    events={tournament.events} 
-    onEventClick={handleEventClick} 
-  />
-) : (
-  <div className="bg-gray-800 rounded-xl p-6 text-center">
-    <p className="text-gray-400">
-      No events added to this tournament yet.
-    </p>
-  </div>
-)}
+            {tournament.events && tournament.events.length > 0 ? (
+              <EventsList
+                events={tournament.events}
+                onEventClick={handleEventClick}
+              />
+            ) : (
+              <div className="bg-gray-800 rounded-xl p-6 text-center">
+                <p className="text-gray-400">
+                  No events added to this tournament yet.
+                </p>
+              </div>
+            )}
           </div>
+        )}
+
+        {activeTab === "teams" && tournament && (
+          <TeamsView tournamentId={id} events={tournament.events || []} />
         )}
 
         {/* Fixtures Tab Content */}

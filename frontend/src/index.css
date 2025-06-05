@@ -6,6 +6,11 @@ html {
   scroll-behavior: smooth;
 }
 
+.form-radio:checked {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
 body {
   font-family: 'Poppins', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: #333;

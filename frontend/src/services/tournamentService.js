@@ -12,10 +12,22 @@ export const getAllTournaments = async () => {
   return response;
 };
 
+// Get a single tournament by ID (public endpoint for players)
+export const getPublicTournamentById = async (id) => {
+  const response = await api.get(`/tournaments/public/${id}`);
+  return response;
+};
+
 // Get a single tournament by ID
 export const getTournamentById = async (id) => {
-  const response = await api.get(`/tournaments/${id}`);
-  return response;
+  try {
+    // Always use the public endpoint for player view
+    const response = await api.get(`/tournaments/public/${id}`);
+    return response;
+  } catch (error) {
+    console.error('Error fetching tournament:', error);
+    throw error;
+  }
 };
 
 // Alias for getTournamentById for backward compatibility

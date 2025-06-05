@@ -12,7 +12,8 @@ const {
   deleteEvent,
   uploadTournamentPoster,
   getTopTournaments,
-  getAllTournaments
+  getAllTournaments,
+  getPublicTournamentById
 } = require('../controllers/tournamentController');
 
 router.get('/top', getTopTournaments);
@@ -20,6 +21,7 @@ router.get('/top', getTopTournaments);
 // Public routes
 router.get('/top', getTopTournaments);
 router.get('/all', getAllTournaments);
+router.get('/public/:id', getPublicTournamentById);
 
 // All routes are protected and require authentication
 router.use(protect);

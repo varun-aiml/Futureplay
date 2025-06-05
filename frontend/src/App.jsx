@@ -18,6 +18,7 @@ import TournamentDetail from "./pages/TournamentDetail";
 import PlayerTournaments from "./pages/PlayerTournaments";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import PlayerTournamentDetails from "./pages/PlayerTournamentDetails";
 
 function App() {
   return (
@@ -29,8 +30,9 @@ function App() {
           <Route path="/organizer/login" element={<OrganizerLogin />} />
           <Route path="/organizer/signup" element={<OrganizerSignup />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
-           {/* Player routes (public) */}
-           <Route path="/tournaments" element={<PlayerTournaments />} />
+          {/* Player routes (public) */}
+          <Route path="/tournaments" element={<PlayerTournaments />} />
+          <Route path="/tournament/:id" element={<PlayerTournamentDetails />} />
           <Route
             path="/organizer/verify-otp"
             element={
@@ -39,7 +41,7 @@ function App() {
               </PrivateRoute>
             }
           />
-          
+
           <Route
             path="/organizer/home"
             element={

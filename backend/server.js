@@ -8,6 +8,7 @@ const passport = require('./config/passport');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const tournamentRoutes = require('./routes/tournamentRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 const reverseGeocodeRoute = require('./routes/reverseGeoCode');
 
 
@@ -41,6 +42,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/bookings', bookingRoutes); 
 app.use('/api/reverse-geocode', reverseGeocodeRoute);
 
 
