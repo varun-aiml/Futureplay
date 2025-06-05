@@ -6,6 +6,12 @@ export const getOrganizerTournaments = async () => {
   return response;
 };
 
+// Get all tournaments (for players)
+export const getAllTournaments = async () => {
+  const response = await api.get('/tournaments/all');
+  return response;
+};
+
 // Get a single tournament by ID
 export const getTournamentById = async (id) => {
   const response = await api.get(`/tournaments/${id}`);

@@ -41,6 +41,27 @@ exports.getOrganizerTournaments = async (req, res) => {
   }
 };
 
+// Get all tournaments (public endpoint)
+exports.getAllTournaments = async (req, res) => {
+  try {
+    const tournaments = await Tournament.find({
+      status: { $in: ['Upcoming', 'Active'] }
+    }).sort({ startDate: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: tournaments.length,
+      data: tournaments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
 // Get a single tournament by ID
 exports.getTournamentById = async (req, res) => {
   try {

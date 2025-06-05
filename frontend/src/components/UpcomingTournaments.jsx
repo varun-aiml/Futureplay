@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { getTopTournaments } from "../services/tournamentService";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 
 function UpcomingTournaments() {
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -212,6 +213,12 @@ function UpcomingTournaments() {
             >
               Completed
             </button>
+            <Link
+              to="/tournaments"
+              className="px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300 bg-transparent text-gray-700 hover:bg-gray-300"
+            >
+              View All
+            </Link>
           </div>
         </div>
 
