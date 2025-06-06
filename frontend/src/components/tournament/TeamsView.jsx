@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { getTournamentBookings } from '../../services/bookingService';
+import { getTournamentBookings, updateBookingStatus } from '../../services/bookingService';
+import { toast } from 'react-toastify';
 
 const TeamsView = ({ tournamentId, events }) => {
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('all');
+  const [updatingBookingId, setUpdatingBookingId] = useState(null);
   
   useEffect(() => {
     const fetchBookings = async () => {
@@ -33,6 +35,28 @@ const TeamsView = ({ tournamentId, events }) => {
   const getEventName = (eventId) => {
     const event = events.find(e => e._id === eventId);
     return event ? event.name : 'Unknown Event';
+  };
+
+  // Handle status update
+  const handleStatusUpdate = async (bookingId, newStatus) => {
+    try {
+      setUpdatingBookingId(bookingId);
+      await updateBookingStatus(bookingId, newStatus);
+      
+      // Update local state
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking._id === bookingId ? { ...booking, status: newStatus } : booking
+        )
+      );
+      
+      toast.success(`Team status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setUpdatingBookingId(null);
+    }
   };
   
   return (
@@ -91,6 +115,9 @@ const TeamsView = ({ tournamentId, events }) => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -112,6 +139,41 @@ const TeamsView = ({ tournamentId, events }) => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${booking.status === 'Confirmed' ? 'bg-green-900 text-green-300' : booking.status === 'Cancelled' ? 'bg-red-900 text-red-300' : 'bg-yellow-900 text-yellow-300'}`}>
                         {booking.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {updatingBookingId === booking._id ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500 mr-2"></div>
+                          <span>Updating...</span>
+                        </div>
+                      ) : (
+                        <div className="flex space-x-2">
+                          {booking.status !== 'Confirmed' && (
+                            <button
+                              onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
+                              className="bg-green-700 hover:bg-green-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+                            >
+                              Confirm
+                            </button>
+                          )}
+                          {booking.status !== 'Pending' && booking.status !== 'Cancelled' && (
+                            <button
+                              onClick={() => handleStatusUpdate(booking._id, 'Pending')}
+                              className="bg-yellow-700 hover:bg-yellow-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+                            >
+                              Pending
+                            </button>
+                          )}
+                          {booking.status !== 'Cancelled' && (
+                            <button
+                              onClick={() => handleStatusUpdate(booking._id, 'Cancelled')}
+                              className="bg-red-700 hover:bg-red-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

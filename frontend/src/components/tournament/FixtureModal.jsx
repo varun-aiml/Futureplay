@@ -1,13 +1,16 @@
 const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-700 animate-slideIn">
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-gray-700 animate-slideIn">
         <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
           <h2 className="text-2xl font-bold text-white flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
             TOURNAMENT STRUCTURE
+            {fixtureData.eventName && (
+              <span className="ml-2 text-lg text-gray-400">({fixtureData.eventName})</span>
+            )}
           </h2>
           <button
             onClick={() => setShowFixtureModal(false)}
@@ -36,6 +39,9 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-4 rounded-lg border border-gray-700 shadow-inner flex flex-col items-center justify-center">
               <h3 className="text-lg font-semibold mb-2 text-red-500">FORMAT</h3>
               <p className="text-white text-xl font-bold">{fixtureData.matchType}</p>
+              {fixtureData.eventName && (
+                <p className="text-gray-400 text-sm mt-2">{fixtureData.eventName}</p>
+              )}
             </div>
             
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-4 rounded-lg border border-gray-700 shadow-inner flex flex-col items-center justify-center">
@@ -64,7 +70,7 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
               <div className="flex space-x-4 md:space-x-6 justify-start min-w-max">
                 {fixtureData.rounds.map((round, index) => (
                   <div key={index} className="relative flex flex-col items-center">
-                    <div className="w-[180px] text-center transform transition-all duration-300 hover:scale-105">
+                    <div className="w-[280px] text-center transform transition-all duration-300 hover:scale-105">
                       <div className="bg-gradient-to-r from-red-700 to-red-600 p-3 rounded-t-lg shadow-lg">
                         <h4 className="font-bold text-white">
                           {round.name}
@@ -81,6 +87,39 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
                         )}
                         {round.details && (
                           <p className="text-gray-400 text-sm mt-2">{round.details}</p>
+                        )}
+                        
+                        {/* Display matchups if available */}
+                        {round.matchups && round.matchups.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                            {round.matchups.map((matchup, idx) => (
+                              <div key={idx} className="bg-gray-700 rounded-xl p-3 text-sm">
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="flex-1">
+                                    <div className={`flex items-center ${matchup.team1 !== 'BYE' && matchup.team1 !== '-' ? 'bg-gray-600 p-2 rounded-lg' : ''}`}>
+                                      <span className="font-medium text-white">{matchup.team1 || '-'}</span>
+                                      {matchup.team1 !== 'BYE' && matchup.team1 !== '-' && (
+                                        <span className="ml-auto w-3 h-full bg-green-500 rounded-r"></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-gray-400 text-xs px-2">M:{index + 1}:{idx + 1}</span>
+                                </div>
+                                <div className="border-t border-gray-600 my-2"></div>
+                                <div className="flex justify-between items-center">
+                                  <div className="flex-1">
+                                    <div className={`flex items-center ${matchup.team2 !== 'BYE' && matchup.team2 !== '-' ? 'bg-gray-600 p-2 rounded-lg' : ''}`}>
+                                      <span className="font-medium text-white">{matchup.team2 || '-'}</span>
+                                      {matchup.team2 !== 'BYE' && matchup.team2 !== '-' && (
+                                        <span className="ml-auto w-3 h-full bg-red-500 rounded-r"></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-gray-400 text-xs">{matchup.score || '-'}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
