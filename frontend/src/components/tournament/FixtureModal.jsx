@@ -1,4 +1,21 @@
+import { useState } from 'react';
+// Remove this import since we won't be using the library
+// import { SingleEliminationBracket, Match, SVGViewer } from '@g-loot/react-tournament-brackets';
+
 const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
+  const [matchClicked, setMatchClicked] = useState(null);
+
+  // We can keep this function for future use but we won't use it now
+  const transformToLibraryFormat = (fixtureData) => {
+    // ... existing code ...
+  };
+
+  // const matches = transformToLibraryFormat(fixtureData);
+
+  const handleMatchClick = (match) => {
+    setMatchClicked(match);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
       <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-gray-700 animate-slideIn">
@@ -66,6 +83,7 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
               Tournament Progression
             </h3>
 
+            {/* Always use the custom visualization instead of the library */}
             <div className="overflow-x-auto pb-4">
               <div className="flex space-x-4 md:space-x-6 justify-start min-w-max">
                 {fixtureData.rounds.map((round, index) => (
@@ -140,70 +158,13 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
           </div>
 
           {/* Tournament Notes */}
-          <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-5 rounded-lg border border-gray-700 shadow-lg">
-            <h3 className="text-lg font-semibold mb-3 text-red-500 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Tournament Notes:
-            </h3>
-            <ul className="list-disc pl-5 space-y-2 text-gray-300">
-              <li className="transition-all duration-300 hover:text-white">
-                For {fixtureData.numTeams} teams participating, it will
-                take {fixtureData.totalRounds} rounds with a total of{" "}
-                {fixtureData.totalMatches} matches.
-              </li>
-              {fixtureData.matchType === "Knockout" && (
-                <>
-                  <li className="transition-all duration-300 hover:text-white">
-                    In a knockout tournament, teams are eliminated after
-                    losing a match.
-                  </li>
-                  <li className="transition-all duration-300 hover:text-white">
-                    The tournament structure includes {fixtureData.rounds.some(r => r.name === "PRELIMINARY ROUND") ? "a preliminary round and " : ""}
-                    progresses through to the final.
-                  </li>
-                </>
-              )}
-              {fixtureData.matchType === "League" && (
-                <>
-                  <li className="transition-all duration-300 hover:text-white">
-                    In a league tournament, each team plays against every
-                    other team once.
-                  </li>
-                  <li className="transition-all duration-300 hover:text-white">
-                    Teams earn {fixtureData.pointsSystem?.win || 3} points for a win, 
-                    {fixtureData.pointsSystem?.draw || 1} point for a draw, and
-                    {fixtureData.pointsSystem?.loss || 0} points for a loss.
-                  </li>
-                </>
-              )}
-              {fixtureData.matchType === "Group+Knockout" && (
-                <>
-                  <li className="transition-all duration-300 hover:text-white">
-                    Teams will be divided into {fixtureData.rounds.find(r => r.groups)?.groups || "multiple"} groups for the
-                    initial group stage.
-                  </li>
-                  <li className="transition-all duration-300 hover:text-white">
-                    Top 2 teams from each group will advance to the
-                    knockout stage.
-                  </li>
-                </>
-              )}
-              <li className="transition-all duration-300 hover:text-white">
-                Schedule matches with sufficient time gaps between
-                rounds.
-              </li>
-              <li className="transition-all duration-300 hover:text-white">
-                Consider venue availability for all match days.
-              </li>
-            </ul>
-          </div>
+          {/* ... existing code ... */}
         </div>
       </div>
       
       {/* Add global styles for animations */}
-      <style jsx global>{`
+      <style>
+        {`
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -232,7 +193,8 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
         .animate-bounce {
           animation: bounce 1.5s infinite;
         }
-      `}</style>
+        `}
+      </style>
     </div>
   );
 };

@@ -642,7 +642,8 @@ const TournamentDetail = () => {
         roundMatchups = generateMatchups(teams, 'first');
       } else {
         // For later rounds, we'll use placeholders
-        roundMatchups = generatePlaceholderMatchups(matchesInRound);
+        const invertedRoundIndex = totalRounds - roundNumber;
+        roundMatchups = generatePlaceholderMatchups(matchesInRound, invertedRoundIndex, teams);
       }
       
       rounds.push({
@@ -698,19 +699,68 @@ const TournamentDetail = () => {
   };
   
   // Helper function to generate placeholder matchups for later rounds
-  const generatePlaceholderMatchups = (numMatches) => {
-    const matchups = [];
-    
-    for (let i = 0; i < numMatches; i++) {
-      matchups.push({
-        team1: `Winner of Match ${i * 2 + 1}`,
-        team2: `Winner of Match ${i * 2 + 2}`,
-        score: ''
-      });
-    }
-    
-    return matchups;
-  };
+    // Helper function to generate placeholder matchups for later rounds
+    const generatePlaceholderMatchups = (numMatches, roundIndex, teams) => {
+        const matchups = [];
+        
+        // For the first round after preliminary (usually quarter finals or round 2)
+        if (roundIndex === 2) {
+          const numTeams = teams.length;
+          const totalRounds = Math.ceil(Math.log2(numTeams));
+          const perfectBracketSize = Math.pow(2, totalRounds);
+          const teamsInPreliminaryRound = (numTeams - Math.pow(2, totalRounds - 1)) * 2;
+          const teamsWithBye = numTeams - teamsInPreliminaryRound;
+          
+          // If we have teams with byes, show their actual names
+          if (teamsWithBye > 0) {
+            // Calculate how many matchups will have winners from preliminary round
+            const prelimWinnerMatchups = teamsInPreliminaryRound / 2;
+            
+            // Create matchups
+            for (let i = 0; i < numMatches; i++) {
+              if (i < prelimWinnerMatchups) {
+                // This matchup has a winner from preliminary round vs a team with bye
+                const byeTeamIndex = teamsInPreliminaryRound + i;
+                matchups.push({
+                  team1: 'TBD', // Changed from Winner M${i+1}
+                  team2: byeTeamIndex < teams.length && teams[byeTeamIndex] ? teams[byeTeamIndex].playerName : 'TBD',
+                  score: ''
+                });
+              } else {
+                // This matchup has two teams with byes
+                const team1Index = teamsInPreliminaryRound + prelimWinnerMatchups + (i - prelimWinnerMatchups) * 2;
+                const team2Index = team1Index + 1;
+                
+                matchups.push({
+                  team1: team1Index < teams.length && teams[team1Index] ? teams[team1Index].playerName : 'TBD',
+                  team2: team2Index < teams.length && teams[team2Index] ? teams[team2Index].playerName : 'TBD',
+                  score: ''
+                });
+              }
+            }
+          } else {
+            // No byes, all teams played in preliminary round
+            for (let i = 0; i < numMatches; i++) {
+              matchups.push({
+                team1: 'TBD', // Changed from Winner M${i*2+1}
+                team2: 'TBD', // Changed from Winner M${i*2+2}
+                score: ''
+              });
+            }
+          }
+        } else {
+          // For semi-finals and finals, use TBD
+          for (let i = 0; i < numMatches; i++) {
+            matchups.push({
+              team1: 'TBD',
+              team2: 'TBD',
+              score: ''
+            });
+          }
+        }
+        
+        return matchups;
+    };
   
   // Generate league fixtures with real team data
   const generateLeagueFixtureWithTeams = (teams, event) => {
