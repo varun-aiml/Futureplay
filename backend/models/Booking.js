@@ -28,6 +28,11 @@ const BookingSchema = new mongoose.Schema({
     enum: ['Pending', 'Confirmed', 'Cancelled'],
     default: 'Pending'
   },
+  registrationSource: {
+    type: String,
+    enum: ['online', 'offline'],
+    default: 'online'
+  },
   createdAt: {
     type: Date,
     default: Date.now

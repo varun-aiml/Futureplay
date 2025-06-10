@@ -4,7 +4,7 @@ const Tournament = require('../models/Tournament');
 // Create a new booking
 exports.createBooking = async (req, res) => {
   try {
-    const { tournamentId, eventId, playerName, email, phone } = req.body;
+    const { tournamentId, eventId, playerName, email, phone, registrationSource } = req.body;
 
     // Verify the tournament and event exist
     const tournament = await Tournament.findById(tournamentId);
@@ -39,7 +39,8 @@ exports.createBooking = async (req, res) => {
       playerName,
       email,
       phone,
-      status: 'Pending'
+      status: 'Pending',
+      registrationSource: registrationSource || 'online' // Default to online if not specified
     });
 
     res.status(201).json({
