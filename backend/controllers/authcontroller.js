@@ -1,11 +1,11 @@
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const { sendOTPEmail } = require('../utils/emailService');
+const User = require("../models/User");
+const jwt = require("jsonwebtoken");
+const { sendOTPEmail } = require("../utils/emailService");
 
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '30d'
+    expiresIn: process.env.JWT_EXPIRES_IN || "30d",
   });
 };
 
@@ -21,7 +21,7 @@ exports.register = async (req, res) => {
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists'
+        message: "User with this email already exists",
       });
     }
 
@@ -30,7 +30,7 @@ exports.register = async (req, res) => {
       name,
       email,
       phone,
-      password
+      password,
     });
 
     // Generate OTP
@@ -42,13 +42,13 @@ exports.register = async (req, res) => {
       await sendOTPEmail({
         name: user.name,
         email: user.email,
-        otp
+        otp,
       });
     } catch (error) {
-      console.error('Email sending error:', error);
+      console.error("Email sending error:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to send verification email. Please try again.'
+        message: "Failed to send verification email. Please try again.",
       });
     }
 
@@ -61,16 +61,16 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Please verify your email.',
+      message: "Registration successful! Please verify your email.",
       token,
-      user
+      user,
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error("Registration error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during registration',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Server error during registration",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -88,7 +88,7 @@ exports.verifyOTP = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -96,7 +96,7 @@ exports.verifyOTP = async (req, res) => {
     if (!user.verifyOTP(otp)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired OTP'
+        message: "Invalid or expired OTP",
       });
     }
 
@@ -107,21 +107,21 @@ exports.verifyOTP = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Email verified successfully',
+      message: "Email verified successfully",
       user: {
         _id: user._id,
         name: user.name,
         email: user.email,
         phone: user.phone,
-        isEmailVerified: user.isEmailVerified
-      }
+        isEmailVerified: user.isEmailVerified,
+      },
     });
   } catch (error) {
-    console.error('OTP verification error:', error);
+    console.error("OTP verification error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during OTP verification',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Server error during OTP verification",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -138,7 +138,7 @@ exports.resendOTP = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -146,7 +146,7 @@ exports.resendOTP = async (req, res) => {
     if (user.isEmailVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Email is already verified'
+        message: "Email is already verified",
       });
     }
 
@@ -159,26 +159,26 @@ exports.resendOTP = async (req, res) => {
       await sendOTPEmail({
         name: user.name,
         email: user.email,
-        otp
+        otp,
       });
     } catch (error) {
-      console.error('Email sending error:', error);
+      console.error("Email sending error:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to send verification email. Please try again.'
+        message: "Failed to send verification email. Please try again.",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'OTP sent successfully'
+      message: "OTP sent successfully",
     });
   } catch (error) {
-    console.error('Resend OTP error:', error);
+    console.error("Resend OTP error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during OTP resend',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Server error during OTP resend",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -194,18 +194,18 @@ exports.login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: "Please provide email and password",
       });
     }
 
     // Find user by email and include password in the result
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select("+password");
 
     // Check if user exists and password is correct
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: "Invalid email or password",
       });
     }
 
@@ -223,15 +223,15 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        isEmailVerified: user.isEmailVerified
-      }
+        isEmailVerified: user.isEmailVerified,
+      },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during login',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Server error during login",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -250,7 +250,7 @@ exports.completeProfile = async (req, res) => {
     if (!phone) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number is required'
+        message: "Phone number is required",
       });
     }
 
@@ -259,7 +259,7 @@ exports.completeProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -270,22 +270,22 @@ exports.completeProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Profile completed successfully',
+      message: "Profile completed successfully",
       user: {
         _id: user._id,
         name: user.name,
         email: user.email,
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
-        profileComplete: user.profileComplete
-      }
+        profileComplete: user.profileComplete,
+      },
     });
   } catch (error) {
-    console.error('Profile completion error:', error);
+    console.error("Profile completion error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during profile completion',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Server error during profile completion",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };

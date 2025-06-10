@@ -49,7 +49,6 @@ const TournamentDetail = () => {
   const [eventFixtures, setEventFixtures] = useState({});
   const [isGeneratingFixtures, setIsGeneratingFixtures] = useState(false);
   const [fixtureError, setFixtureError] = useState('');
-  const [teamData, setTeamData] = useState([]);
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -457,7 +456,7 @@ const TournamentDetail = () => {
     }
 
     const totalMatches = totalGroupMatches + knockoutMatches;
-    const totalRounds = groupStageRounds + knockoutRounds;
+    const totalRounds = rounds.length;
 
     return {
       matchType: "Group+Knockout",
@@ -513,7 +512,6 @@ const TournamentDetail = () => {
       
       // Fetch team data for the selected event
       const teams = await fetchTeamData(eventId);
-      setTeamData(teams);
       
       // Check if we have enough teams
       if (teams.length < 2) {
@@ -522,7 +520,6 @@ const TournamentDetail = () => {
       
       // Generate fixtures based on match type and number of teams
       let fixtureResult = null;
-      const numTeams = teams.length;
       
       switch (event.matchType) {
         case 'Knockout':
@@ -567,213 +564,123 @@ const TournamentDetail = () => {
   
   // Generate knockout fixtures with real team data
   const generateKnockoutFixtureWithTeams = (teams, event) => {
-    const numTeams = teams.length;
-    const rounds = [];
-    let totalMatches = numTeams - 1;
-    
-    // Calculate the number of rounds needed
-    const totalRounds = Math.ceil(Math.log2(numTeams));
-    
-    // Calculate the perfect bracket size (next power of 2)
+    let totalMatches = teams.length - 1;
+    const totalRounds = Math.ceil(Math.log2(teams.length));
     const perfectBracketSize = Math.pow(2, totalRounds);
-    
-    // Calculate if we need a preliminary round
-    const needsPreliminaryRound =
-      numTeams > Math.pow(2, totalRounds - 1) && numTeams < perfectBracketSize;
-    
-    // Calculate how many teams play in the preliminary round
+    const needsPreliminaryRound = teams.length > Math.pow(2, totalRounds - 1) && teams.length < perfectBracketSize;
     const teamsInPreliminaryRound = needsPreliminaryRound
-      ? (numTeams - Math.pow(2, totalRounds - 1)) * 2
+      ? (teams.length - Math.pow(2, totalRounds - 1)) * 2
       : 0;
     const matchesInPreliminaryRound = teamsInPreliminaryRound / 2;
-    
-    // Teams that advance directly to the first main round (get a bye in preliminary)
     const teamsWithFirstRoundBye = needsPreliminaryRound
-      ? numTeams - teamsInPreliminaryRound
+      ? teams.length - teamsInPreliminaryRound
       : 0;
-    
-    // Add preliminary round if needed
-    if (needsPreliminaryRound) {
-      rounds.push({
-        name: 'PRELIMINARY ROUND',
-        matches: matchesInPreliminaryRound,
-        byes: 0,
-        teamsInRound: teamsInPreliminaryRound,
-        teamsAdvancing: matchesInPreliminaryRound,
-        details: `${teamsInPreliminaryRound} teams compete, ${teamsWithFirstRoundBye} teams get a bye to next round`,
-        matchups: generateMatchups(teams.slice(0, teamsInPreliminaryRound), 'preliminary')
-      });
-    }
-    
-    // Calculate teams in first main round
-    let teamsInFirstMainRound = needsPreliminaryRound
+
+    let matches = [];
+    let roundNames = [];
+    let roundSizes = [];
+
+    // Build round names and sizes
+    let remainingTeams = needsPreliminaryRound
       ? matchesInPreliminaryRound + teamsWithFirstRoundBye
-      : numTeams;
-    
-    // Generate main knockout rounds
-    let remainingTeams = teamsInFirstMainRound;
-    let roundNumber = needsPreliminaryRound ? 2 : 1;
-    
-    while (remainingTeams > 1) {
-      const matchesInRound = remainingTeams / 2;
-      
-      let roundName = '';
-      if (remainingTeams === 2) {
-        roundName = 'FINAL';
-      } else if (remainingTeams === 4) {
-        roundName = 'SEMI FINAL';
-      } else if (remainingTeams === 8) {
-        roundName = 'QUARTER FINAL';
-      } else if (remainingTeams === 16) {
-        roundName = 'PRE-QUARTER FINAL';
-      } else if (remainingTeams === 32) {
-        roundName = 'ROUND OF 32';
-      } else if (remainingTeams === 64) {
-        roundName = 'ROUND OF 64';
-      } else if (remainingTeams === 128) {
-        roundName = 'ROUND OF 128';
-      } else {
-        roundName = `ROUND ${roundNumber}`;
-      }
-      
-      // For the first round, we can assign actual teams
-      let roundMatchups = [];
-      if (roundNumber === 1) {
-        roundMatchups = generateMatchups(teams, 'first');
-      } else {
-        // For later rounds, we'll use placeholders
-        const invertedRoundIndex = totalRounds - roundNumber;
-        roundMatchups = generatePlaceholderMatchups(matchesInRound, invertedRoundIndex, teams);
-      }
-      
-      rounds.push({
-        name: roundName,
-        matches: matchesInRound,
-        byes: 0,
-        teamsInRound: remainingTeams,
-        teamsAdvancing: matchesInRound,
-        details: `${remainingTeams} teams → ${matchesInRound} winners advance`,
-        matchups: roundMatchups
-      });
-      
-      roundNumber++;
-      remainingTeams = matchesInRound;
+      : teams.length;
+    let roundNumber = 1;
+    if (needsPreliminaryRound) {
+      roundNames.push('PRELIMINARY ROUND');
+      roundSizes.push(teamsInPreliminaryRound);
     }
-    
+    while (remainingTeams > 1) {
+      let roundName = '';
+      if (remainingTeams === 2) roundName = 'FINAL';
+      else if (remainingTeams === 4) roundName = 'SEMI FINAL';
+      else if (remainingTeams === 8) roundName = 'QUARTER FINAL';
+      else if (remainingTeams === 16) roundName = 'PRE-QUARTER FINAL';
+      else if (remainingTeams === 32) roundName = 'ROUND OF 32';
+      else if (remainingTeams === 64) roundName = 'ROUND OF 64';
+      else if (remainingTeams === 128) roundName = 'ROUND OF 128';
+      else roundName = `ROUND ${roundNumber}`;
+      roundNames.push(roundName);
+      roundSizes.push(remainingTeams);
+      remainingTeams = remainingTeams / 2;
+      roundNumber++;
+    }
+
+    // 1. Preliminary round (if needed)
+    if (needsPreliminaryRound) {
+      for (let i = 0; i < teamsInPreliminaryRound; i += 2) {
+        matches.push({
+          round: 'PRELIMINARY ROUND',
+          player1: { name: teams[i].playerName },
+          player2: teams[i + 1] ? { name: teams[i + 1].playerName } : { name: 'BYE' },
+          status: 'Pending',
+          score: '',
+        });
+      }
+    }
+
+    // 2. First main round (with byes if needed)
+    let firstMainRoundTeams = [];
+    if (needsPreliminaryRound) {
+      // Winners from preliminary + byes
+      // We don't know winners yet, so use 'TBD' for preliminary winners
+      for (let i = 0; i < matchesInPreliminaryRound; i++) {
+        firstMainRoundTeams.push({ name: 'TBD' });
+      }
+      for (let i = teamsInPreliminaryRound; i < teams.length; i++) {
+        firstMainRoundTeams.push({ name: teams[i].playerName });
+      }
+    } else {
+      // All teams play in first round
+      firstMainRoundTeams = teams.map(t => ({ name: t.playerName }));
+    }
+
+    let roundIdx = needsPreliminaryRound ? 1 : 0;
+    let teamsForRound = firstMainRoundTeams;
+    for (; roundIdx < roundNames.length; roundIdx++) {
+      const roundName = roundNames[roundIdx];
+      const numMatches = Math.floor(teamsForRound.length / 2);
+      for (let i = 0; i < numMatches; i++) {
+        let p1 = teamsForRound[i * 2] || { name: 'TBD' };
+        let p2 = teamsForRound[i * 2 + 1] || { name: 'TBD' };
+        // Only show real names in first main round, otherwise always 'TBD'
+        if (roundIdx > (needsPreliminaryRound ? 1 : 0)) {
+          p1 = { name: 'TBD' };
+          p2 = { name: 'TBD' };
+        }
+        matches.push({
+          round: roundName,
+          player1: p1,
+          player2: p2,
+          status: 'Pending',
+          score: '',
+        });
+      }
+      // Prepare for next round: all winners are 'TBD' until matches are played
+      teamsForRound = Array(numMatches).fill({ name: 'TBD' });
+    }
+
     return {
       matchType: 'Knockout',
-      numTeams,
-      totalRounds: rounds.length,
+      numTeams: teams.length,
+      totalRounds: roundNames.length,
       totalMatches,
-      rounds,
-      summary: `${numTeams} teams will compete in ${rounds.length} rounds with ${totalMatches} total matches`,
-      eventName: event.name
+      matches,
+      summary: `${teams.length} teams will compete in ${roundNames.length} rounds with ${totalMatches} total matches`,
+      eventName: event.name,
     };
   };
-  
-  // Helper function to generate matchups for knockout rounds
-  const generateMatchups = (teams, roundType) => {
-    const matchups = [];
-    
-    if (roundType === 'preliminary' || roundType === 'first') {
-      // For preliminary or first round, we can use actual team names
-      for (let i = 0; i < teams.length; i += 2) {
-        if (i + 1 < teams.length) {
-          matchups.push({
-            team1: teams[i].playerName,
-            team2: teams[i + 1].playerName,
-            score: ''
-          });
-        } else {
-          // If odd number of teams, the last one gets a bye
-          matchups.push({
-            team1: teams[i].playerName,
-            team2: 'BYE',
-            score: ''
-          });
-        }
-      }
-    }
-    
-    return matchups;
-  };
-  
-  // Helper function to generate placeholder matchups for later rounds
-    // Helper function to generate placeholder matchups for later rounds
-    const generatePlaceholderMatchups = (numMatches, roundIndex, teams) => {
-        const matchups = [];
-        
-        // For the first round after preliminary (usually quarter finals or round 2)
-        if (roundIndex === 2) {
-          const numTeams = teams.length;
-          const totalRounds = Math.ceil(Math.log2(numTeams));
-          const perfectBracketSize = Math.pow(2, totalRounds);
-          const teamsInPreliminaryRound = (numTeams - Math.pow(2, totalRounds - 1)) * 2;
-          const teamsWithBye = numTeams - teamsInPreliminaryRound;
-          
-          // If we have teams with byes, show their actual names
-          if (teamsWithBye > 0) {
-            // Calculate how many matchups will have winners from preliminary round
-            const prelimWinnerMatchups = teamsInPreliminaryRound / 2;
-            
-            // Create matchups
-            for (let i = 0; i < numMatches; i++) {
-              if (i < prelimWinnerMatchups) {
-                // This matchup has a winner from preliminary round vs a team with bye
-                const byeTeamIndex = teamsInPreliminaryRound + i;
-                matchups.push({
-                  team1: 'TBD', // Changed from Winner M${i+1}
-                  team2: byeTeamIndex < teams.length && teams[byeTeamIndex] ? teams[byeTeamIndex].playerName : 'TBD',
-                  score: ''
-                });
-              } else {
-                // This matchup has two teams with byes
-                const team1Index = teamsInPreliminaryRound + prelimWinnerMatchups + (i - prelimWinnerMatchups) * 2;
-                const team2Index = team1Index + 1;
-                
-                matchups.push({
-                  team1: team1Index < teams.length && teams[team1Index] ? teams[team1Index].playerName : 'TBD',
-                  team2: team2Index < teams.length && teams[team2Index] ? teams[team2Index].playerName : 'TBD',
-                  score: ''
-                });
-              }
-            }
-          } else {
-            // No byes, all teams played in preliminary round
-            for (let i = 0; i < numMatches; i++) {
-              matchups.push({
-                team1: 'TBD', // Changed from Winner M${i*2+1}
-                team2: 'TBD', // Changed from Winner M${i*2+2}
-                score: ''
-              });
-            }
-          }
-        } else {
-          // For semi-finals and finals, use TBD
-          for (let i = 0; i < numMatches; i++) {
-            matchups.push({
-              team1: 'TBD',
-              team2: 'TBD',
-              score: ''
-            });
-          }
-        }
-        
-        return matchups;
-    };
   
   // Generate league fixtures with real team data
   const generateLeagueFixtureWithTeams = (teams, event) => {
-    const numTeams = teams.length;
     const rounds = [];
-    const totalMatches = (numTeams * (numTeams - 1)) / 2;
-    const totalRounds = numTeams % 2 === 0 ? numTeams - 1 : numTeams;
+    const totalMatches = (teams.length * (teams.length - 1)) / 2;
+    const totalRounds = teams.length % 2 === 0 ? teams.length - 1 : teams.length;
     
     // Create a schedule using round-robin algorithm
     const schedule = [];
     const teamIds = teams.map(team => team._id);
     
-    if (numTeams % 2 === 1) {
+    if (teams.length % 2 === 1) {
       // Add a dummy team for bye if odd number of teams
       teamIds.push('bye');
     }
@@ -812,9 +719,9 @@ const TournamentDetail = () => {
       rounds.push({
         name: `ROUND ${i + 1}`,
         matches: schedule[i].length,
-        byes: numTeams % 2 === 1 ? 1 : 0,
-        teamsInRound: numTeams,
-        details: numTeams % 2 === 1 
+        byes: teams.length % 2 === 1 ? 1 : 0,
+        teamsInRound: teams.length,
+        details: teams.length % 2 === 1 
           ? `${schedule[i].length} matches, 1 team gets bye` 
           : `${schedule[i].length} matches`,
         matchups: schedule[i]
@@ -823,7 +730,7 @@ const TournamentDetail = () => {
     
     return {
       matchType: 'League',
-      numTeams,
+      numTeams: teams.length,
       totalRounds,
       totalMatches,
       rounds,
@@ -832,17 +739,16 @@ const TournamentDetail = () => {
         draw: 1,
         loss: 0,
       },
-      summary: `Each team plays ${numTeams - 1} matches. Total ${totalMatches} matches over ${totalRounds} rounds`,
+      summary: `Each team plays ${teams.length - 1} matches. Total ${totalMatches} matches over ${totalRounds} rounds`,
       eventName: event.name
     };
   };
   
   // Generate group+knockout fixtures with real team data
   const generateGroupKnockoutFixtureWithTeams = (teams, event) => {
-    const numTeams = teams.length;
     const rounds = [];
     
-    const { numGroups, groupSizes } = optimizeGroups(numTeams);
+    const { numGroups, groupSizes } = optimizeGroups(teams.length);
     
     // Distribute teams into groups
     const groups = Array.from({ length: numGroups }, () => []);
@@ -1008,12 +914,12 @@ const TournamentDetail = () => {
     
     return {
       matchType: 'Group+Knockout',
-      numTeams,
+      numTeams: teams.length,
       totalRounds,
       totalMatches,
       rounds,
       groupFixtures,
-      summary: `${numTeams} teams in ${numGroups} groups, followed by knockout with ${teamsAdvancing} teams`,
+      summary: `${teams.length} teams in ${numGroups} groups, followed by knockout with ${teamsAdvancing} teams`,
       eventName: event.name
     };
   };

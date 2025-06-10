@@ -3,18 +3,6 @@ import { useState } from 'react';
 // import { SingleEliminationBracket, Match, SVGViewer } from '@g-loot/react-tournament-brackets';
 
 const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
-  const [matchClicked, setMatchClicked] = useState(null);
-
-  // We can keep this function for future use but we won't use it now
-  const transformToLibraryFormat = (fixtureData) => {
-    // ... existing code ...
-  };
-
-  // const matches = transformToLibraryFormat(fixtureData);
-
-  const handleMatchClick = (match) => {
-    setMatchClicked(match);
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
@@ -86,72 +74,98 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
             {/* Always use the custom visualization instead of the library */}
             <div className="overflow-x-auto pb-4">
               <div className="flex space-x-4 md:space-x-6 justify-start min-w-max">
-                {fixtureData.rounds.map((round, index) => (
-                  <div key={index} className="relative flex flex-col items-center">
-                    <div className="w-[280px] text-center transform transition-all duration-300 hover:scale-105">
-                      <div className="bg-gradient-to-r from-red-700 to-red-600 p-3 rounded-t-lg shadow-lg">
-                        <h4 className="font-bold text-white">
-                          {round.name}
-                        </h4>
-                      </div>
-                      <div className="bg-gray-800 p-4 rounded-b-lg border border-gray-600 shadow-inner">
-                        <p className="text-white font-medium text-lg">
-                          {round.matches} {round.matches === 1 ? 'Match' : 'Matches'}
-                        </p>
-                        {round.byes > 0 && (
-                          <p className="text-gray-400">
-                            {round.byes} {round.byes === 1 ? 'Bye' : 'Byes'}
+                {/* Knockout/League: Use matches grouped by round */}
+                {((fixtureData.matchType === 'Knockout' || fixtureData.matchType === 'League') && Array.isArray(fixtureData.matches)) ? (
+                  Array.from(new Set(fixtureData.matches.map(m => m.round))).map((roundName, index) => (
+                    <div key={index} className="relative flex flex-col items-center">
+                      <div className="w-[280px] text-center transform transition-all duration-300 hover:scale-105">
+                        <div className="bg-gradient-to-r from-red-700 to-red-600 p-3 rounded-t-lg shadow-lg">
+                          <h4 className="font-bold text-white">{roundName}</h4>
+                        </div>
+                        <div className="bg-gray-800 p-4 rounded-b-lg border border-gray-600 shadow-inner">
+                          <p className="text-white font-medium text-lg">
+                            {fixtureData.matches.filter(m => m.round === roundName).length} {fixtureData.matches.filter(m => m.round === roundName).length === 1 ? 'Match' : 'Matches'}
                           </p>
-                        )}
-                        {round.details && (
-                          <p className="text-gray-400 text-sm mt-2">{round.details}</p>
-                        )}
-                        
-                        {/* Display matchups if available */}
-                        {round.matchups && round.matchups.length > 0 && (
                           <div className="mt-4 space-y-3">
-                            {round.matchups.map((matchup, idx) => (
+                            {fixtureData.matches.filter(m => m.round === roundName).map((match, idx) => (
                               <div key={idx} className="bg-gray-700 rounded-xl p-3 text-sm">
                                 <div className="flex justify-between items-center mb-1">
                                   <div className="flex-1">
-                                    <div className={`flex items-center ${matchup.team1 !== 'BYE' && matchup.team1 !== '-' ? 'bg-gray-600 p-2 rounded-lg' : ''}`}>
-                                      <span className="font-medium text-white">{matchup.team1 || '-'}</span>
-                                      {matchup.team1 !== 'BYE' && matchup.team1 !== '-' && (
-                                        <span className="ml-auto w-3 h-full bg-green-500 rounded-r"></span>
-                                      )}
-                                    </div>
+                                    <span className="font-medium text-white">{match.player1?.name || '-'}</span>
                                   </div>
-                                  <span className="text-gray-400 text-xs px-2">M:{index + 1}:{idx + 1}</span>
-                                </div>
-                                <div className="border-t border-gray-600 my-2"></div>
-                                <div className="flex justify-between items-center">
-                                  <div className="flex-1">
-                                    <div className={`flex items-center ${matchup.team2 !== 'BYE' && matchup.team2 !== '-' ? 'bg-gray-600 p-2 rounded-lg' : ''}`}>
-                                      <span className="font-medium text-white">{matchup.team2 || '-'}</span>
-                                      {matchup.team2 !== 'BYE' && matchup.team2 !== '-' && (
-                                        <span className="ml-auto w-3 h-full bg-red-500 rounded-r"></span>
-                                      )}
-                                    </div>
+                                  <span className="text-gray-400 text-xs px-2">vs</span>
+                                  <div className="flex-1 text-right">
+                                    <span className="font-medium text-white">{match.player2?.name || '-'}</span>
                                   </div>
-                                  <span className="text-gray-400 text-xs">{matchup.score || '-'}</span>
                                 </div>
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    {index < fixtureData.rounds.length - 1 && (
-                      <div className="flex items-center justify-center h-full mt-4 mb-4">
-                        <div className="relative w-16 h-10 flex items-center justify-center">
-                          {/* Enhanced arrow with animation */}
-                          <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700"></div>
-                          <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700 animate-pulse opacity-70"></div>
-                          <div className="absolute right-0 w-4 h-4 bg-red-600 transform rotate-45 rounded-sm animate-bounce"></div>
                         </div>
                       </div>
-                    )}
-                  </div>
+                      {index < Array.from(new Set(fixtureData.matches.map(m => m.round))).length - 1 && (
+                        <div className="flex items-center justify-center h-full mt-4 mb-4">
+                          <div className="relative w-16 h-10 flex items-center justify-center">
+                            <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700"></div>
+                            <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700 animate-pulse opacity-70"></div>
+                            <div className="absolute right-0 w-4 h-4 bg-red-600 transform rotate-45 rounded-sm animate-bounce"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (Array.isArray(fixtureData.rounds) ? (
+                  fixtureData.rounds.map((round, index) => (
+                    <div key={index} className="relative flex flex-col items-center">
+                      <div className="w-[280px] text-center transform transition-all duration-300 hover:scale-105">
+                        <div className="bg-gradient-to-r from-red-700 to-red-600 p-3 rounded-t-lg shadow-lg">
+                          <h4 className="font-bold text-white">{round.name}</h4>
+                        </div>
+                        <div className="bg-gray-800 p-4 rounded-b-lg border border-gray-600 shadow-inner">
+                          <p className="text-white font-medium text-lg">
+                            {round.matches} {round.matches === 1 ? 'Match' : 'Matches'}
+                          </p>
+                          {round.byes > 0 && (
+                            <p className="text-gray-400">
+                              {round.byes} {round.byes === 1 ? 'Bye' : 'Byes'}
+                            </p>
+                          )}
+                          {round.details && (
+                            <p className="text-gray-400 text-sm mt-2">{round.details}</p>
+                          )}
+                          {/* Display matchups if available */}
+                          {round.matchups && round.matchups.length > 0 && (
+                            <div className="mt-4 space-y-3">
+                              {round.matchups.map((matchup, idx) => (
+                                <div key={idx} className="bg-gray-700 rounded-xl p-3 text-sm">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <div className="flex-1">
+                                      <span className="font-medium text-white">{matchup.team1 || '-'}</span>
+                                    </div>
+                                    <span className="text-gray-400 text-xs px-2">vs</span>
+                                    <div className="flex-1 text-right">
+                                      <span className="font-medium text-white">{matchup.team2 || '-'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {index < fixtureData.rounds.length - 1 && (
+                        <div className="flex items-center justify-center h-full mt-4 mb-4">
+                          <div className="relative w-16 h-10 flex items-center justify-center">
+                            <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700"></div>
+                            <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700 animate-pulse opacity-70"></div>
+                            <div className="absolute right-0 w-4 h-4 bg-red-600 transform rotate-45 rounded-sm animate-bounce"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-400 text-center w-full py-8">No fixture data available.</div>
                 ))}
               </div>
             </div>
