@@ -4,6 +4,7 @@ import OrganizerLayout from "../components/OrganizerLayout";
 import { getTournamentById, addEvent } from "../services/tournamentService";
 import { updateEvent, deleteEvent } from "../services/tournamentService";
 import { getTournamentBookings } from '../services/bookingService';
+import FixtureEditor from "../components/tournament/FixtureEditor";
 import { toast } from "react-toastify";
 
 // Import modular components
@@ -29,6 +30,8 @@ const TournamentDetail = () => {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [eventError, setEventError] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showFixtureEditor, setShowFixtureEditor] = useState(false);
+  const [selectedFixtureForEdit, setSelectedFixtureForEdit] = useState(null);
   const [currentEventId, setCurrentEventId] = useState(null);
   const [newEvent, setNewEvent] = useState({
     name: "",
@@ -65,6 +68,16 @@ const TournamentDetail = () => {
 
     fetchTournament();
   }, [id]);
+
+  // Add this function to handle fixture updates
+const handleFixtureUpdated = (updatedFixture) => {
+    // Update the fixtures in state
+    setEventFixtures(prev => ({
+      ...prev,
+      [selectedFixtureEventId]: updatedFixture
+    }));
+    setFixtureData(updatedFixture);
+  };
 
   // Handle event click for editing
   const handleEventClick = (event) => {
@@ -559,6 +572,14 @@ const TournamentDetail = () => {
     if (eventFixtures[eventId]) {
       setFixtureData(eventFixtures[eventId]);
       setShowFixtureModal(true);
+    }
+  };
+
+  // Add a function to edit fixtures
+const editEventFixtures = (eventId) => {
+    if (eventFixtures[eventId]) {
+      setSelectedFixtureForEdit(eventFixtures[eventId]);
+      setShowFixtureEditor(true);
     }
   };
   
@@ -1188,13 +1209,21 @@ const TournamentDetail = () => {
                 
                 {eventFixtures[selectedFixtureEventId] ? (
                   <div className="text-white">
-                    <p className="mb-4">Fixtures have been generated for this event. Click the button below to view them.</p>
-                    <button
-                      onClick={() => viewEventFixtures(selectedFixtureEventId)}
-                      className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
-                    >
-                      View Fixtures
-                    </button>
+                     <p className="mb-4">Fixtures have been generated for this event. Click the buttons below to view or edit them.</p>
+                     <div className="flex space-x-3">
+      <button
+        onClick={() => viewEventFixtures(selectedFixtureEventId)}
+        className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
+      >
+        View Fixtures
+      </button>
+      <button
+        onClick={() => editEventFixtures(selectedFixtureEventId)}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
+      >
+        Edit Fixtures
+      </button>
+    </div>
                   </div>
                 ) : (
                   <div className="text-gray-400 text-center py-8">
@@ -1212,6 +1241,17 @@ const TournamentDetail = () => {
             )}
           </div>
         )}
+
+        {/* Fixture Editor Modal */}
+{showFixtureEditor && selectedFixtureForEdit && (
+  <FixtureEditor
+    fixtureData={selectedFixtureForEdit}
+    tournamentId={id}
+    eventId={selectedFixtureEventId}
+    onClose={() => setShowFixtureEditor(false)}
+    onFixtureUpdated={handleFixtureUpdated}
+  />
+)}
 
         {/* Fixture Generator Modal */}
         {showFixtureModal && fixtureData && (

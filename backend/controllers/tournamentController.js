@@ -62,6 +62,60 @@ exports.getAllTournaments = async (req, res) => {
   }
 };
 
+// Add this function to tournamentController.js
+exports.updateFixture = async (req, res) => {
+  try {
+    const { tournamentId, eventId, fixtureData } = req.body;
+    
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    // Check if the tournament belongs to the logged-in organizer
+    if (tournament.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this tournament'
+      });
+    }
+
+    const eventIndex = tournament.events.findIndex(event => 
+      event._id.toString() === eventId
+    );
+
+    if (eventIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Update the fixtures for this event
+    tournament.events[eventIndex].fixtures = [fixtureData];
+    
+    // Mark the fixture as modified
+    tournament.events[eventIndex].fixtures[0].status = 'Modified';
+    
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      data: tournament.events[eventIndex].fixtures[0]
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: 'Failed to update fixture',
+      error: error.message
+    });
+  }
+};
+
 // Get a single tournament by ID
 exports.getTournamentById = async (req, res) => {
   try {
@@ -387,6 +441,147 @@ exports.getPublicTournamentById = async (req, res) => {
     });
   }
 };
+
+// ... existing code ...
+
+// Fixture generation functions
+exports.generateKnockoutFixtures = (fixtures, participants) => {
+  const participantIds = participants.map(p => p.toString());
+  const matches = [];
+  const totalRounds = Math.ceil(Math.log2(participantIds.length));
+  
+  // First round matches
+  const firstRoundMatches = Math.pow(2, totalRounds - 1);
+  const byes = firstRoundMatches * 2 - participantIds.length;
+  
+  let matchNumber = 1;
+  for (let i = 0; i < firstRoundMatches; i++) {
+    const match = {
+      round: 1,
+      matchNumber: matchNumber++,
+      team1: i < participantIds.length ? participantIds[i] : 'BYE',
+      team2: i < participantIds.length - byes ? participantIds[participantIds.length - 1 - i] : 'BYE',
+      winner: '',
+      score: ''
+    };
+    
+    // Auto-advance if there's a bye
+    if (match.team1 === 'BYE') match.winner = match.team2;
+    if (match.team2 === 'BYE') match.winner = match.team1;
+    
+    matches.push(match);
+  }
+  
+  // Create placeholder matches for subsequent rounds
+  for (let round = 2; round <= totalRounds; round++) {
+    const roundMatches = Math.pow(2, totalRounds - round);
+    for (let i = 0; i < roundMatches; i++) {
+      matches.push({
+        round: round,
+        matchNumber: matchNumber++,
+        team1: '',
+        team2: '',
+        winner: '',
+        score: ''
+      });
+    }
+  }
+  
+  fixtures.matches = matches;
+  return fixtures;
+};
+
+exports.generateLeagueFixtures = (fixtures, participants) => {
+  const participantIds = participants.map(p => p.toString());
+  const matches = [];
+  
+  let matchNumber = 1;
+  // Round-robin tournament: each participant plays against all others
+  for (let i = 0; i < participantIds.length; i++) {
+    for (let j = i + 1; j < participantIds.length; j++) {
+      matches.push({
+        round: 1, // All matches are in one round for league
+        matchNumber: matchNumber++,
+        team1: participantIds[i],
+        team2: participantIds[j],
+        winner: '',
+        score: ''
+      });
+    }
+  }
+  
+  fixtures.matches = matches;
+  return fixtures;
+};
+
+exports.generateGroupKnockoutFixtures = (fixtures, participants) => {
+  const participantIds = participants.map(p => p.toString());
+  const groups = [];
+  const numGroups = Math.min(4, Math.ceil(participantIds.length / 3)); // Create up to 4 groups with at least 3 participants each
+  
+  // Distribute participants into groups
+  const participantsPerGroup = Math.ceil(participantIds.length / numGroups);
+  for (let i = 0; i < numGroups; i++) {
+    const groupTeams = participantIds.slice(i * participantsPerGroup, (i + 1) * participantsPerGroup);
+    const groupMatches = [];
+    
+    // Create round-robin matches within each group
+    for (let j = 0; j < groupTeams.length; j++) {
+      for (let k = j + 1; k < groupTeams.length; k++) {
+        groupMatches.push({
+          team1: groupTeams[j],
+          team2: groupTeams[k],
+          winner: '',
+          score: ''
+        });
+      }
+    }
+    
+    groups.push({
+      name: `Group ${String.fromCharCode(65 + i)}`, // Group A, B, C, etc.
+      teams: groupTeams,
+      matches: groupMatches
+    });
+  }
+  
+  // Create knockout stage matches (assuming top 2 from each group advance)
+  const knockoutMatches = [];
+  const totalKnockoutRounds = Math.ceil(Math.log2(numGroups * 2));
+  let matchNumber = 1;
+  
+  // First round of knockout
+  for (let i = 0; i < numGroups; i++) {
+    knockoutMatches.push({
+      round: 1,
+      matchNumber: matchNumber++,
+      team1: `Winner Group ${String.fromCharCode(65 + i)}`,
+      team2: `Runner-up Group ${String.fromCharCode(65 + ((i + 1) % numGroups))}`,
+      winner: '',
+      score: ''
+    });
+  }
+  
+  // Create placeholder matches for subsequent knockout rounds
+  for (let round = 2; round <= totalKnockoutRounds; round++) {
+    const roundMatches = Math.pow(2, totalKnockoutRounds - round);
+    for (let i = 0; i < roundMatches; i++) {
+      knockoutMatches.push({
+        round: round,
+        matchNumber: matchNumber++,
+        team1: '',
+        team2: '',
+        winner: '',
+        score: ''
+      });
+    }
+  }
+  
+  fixtures.groups = groups;
+  fixtures.matches = knockoutMatches;
+  return fixtures;
+};
+
+// ... existing code ...
 
 // Middleware for handling file uploads
 exports.uploadTournamentPoster = upload.single('poster');

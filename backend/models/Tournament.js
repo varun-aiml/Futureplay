@@ -41,6 +41,34 @@ const eventSchema = new mongoose.Schema({
     participants: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
+    }],
+
+    fixtures: [{
+      eventId: mongoose.Schema.Types.ObjectId,
+      matchType: String,
+      status: {
+        type: String,
+        enum: ['Generated', 'Modified', 'Insufficient Participants'],
+        default: 'Generated'
+      },
+      matches: [{
+        round: Number,
+        matchNumber: Number,
+        team1: String,
+        team2: String,
+        winner: String,
+        score: String
+      }],
+      groups: [{
+        name: String,
+        teams: [String],
+        matches: [{
+          team1: String,
+          team2: String,
+          winner: String,
+          score: String
+        }]
+      }]
     }]
   });
 

@@ -1,4 +1,5 @@
 const Tournament = require('../models/Tournament');
+const tournamentController = require('../controllers/tournamentController');
 
 async function generateFixturesForClosedEvents() {
   try {
@@ -41,18 +42,15 @@ async function generateFixturesForClosedEvents() {
           groups: []
         };
 
-        // Import the fixture generation functions directly
-        const { generateKnockoutFixtures, generateLeagueFixtures, generateGroupKnockoutFixtures } = require('../controllers/tournamentController');
-
         switch (event.matchType) {
           case 'Knockout':
-            fixtures = generateKnockoutFixtures(fixtures, event.participants);
+            fixtures = tournamentController.generateKnockoutFixtures(fixtures, event.participants);
             break;
           case 'League':
-            fixtures = generateLeagueFixtures(fixtures, event.participants);
+            fixtures = tournamentController.generateLeagueFixtures(fixtures, event.participants);
             break;
           case 'Group+Knockout':
-            fixtures = generateGroupKnockoutFixtures(fixtures, event.participants);
+            fixtures = tournamentController.generateGroupKnockoutFixtures(fixtures, event.participants);
             break;
         }
 

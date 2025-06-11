@@ -6,6 +6,26 @@ export const getOrganizerTournaments = async () => {
   return response;
 };
 
+// Add this function to tournamentService.js
+export const updateFixture = async (tournamentId, eventId, fixtureData) => {
+  // This is a placeholder for future backend integration
+  // For now, we'll just return a mock successful response
+  return {
+    data: {
+      success: true,
+      data: fixtureData
+    }
+  };
+  
+  // When backend is ready, uncomment this:
+  // const response = await api.put('/tournaments/fixtures', {
+  //   tournamentId,
+  //   eventId,
+  //   fixtureData
+  // });
+  // return response;
+};
+
 // Get all tournaments (for players)
 export const getAllTournaments = async () => {
   const response = await api.get('/tournaments/all');

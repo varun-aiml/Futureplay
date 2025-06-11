@@ -13,7 +13,8 @@ const {
   uploadTournamentPoster,
   getTopTournaments,
   getAllTournaments,
-  getPublicTournamentById
+  getPublicTournamentById,
+  updateFixture // Add this import
 } = require('../controllers/tournamentController');
 
 router.get('/top', getTopTournaments);
@@ -45,5 +46,9 @@ router.route('/:id/events')
 router.route('/:id/events/:eventId')
   .put(updateEvent)
   .delete(deleteEvent);
+
+// Fixture routes
+router.route('/fixtures')
+  .put(updateFixture); // No need for protect middleware here as router.use(protect) applies it to all routes
 
 module.exports = router;
