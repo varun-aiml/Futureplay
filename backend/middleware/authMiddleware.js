@@ -35,4 +35,18 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+// Add this function to your existing authMiddleware.js file
+
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Role ${req.user.role} is not authorized to access this resource`
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { protect, authorize: exports.authorize };

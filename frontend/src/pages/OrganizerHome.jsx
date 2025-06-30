@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/authContext";
+import { getAllFranchises } from "../services/franchiseService";
 import OrganizerLayout from "../components/OrganizerLayout";
 import {
   BarChart,
@@ -146,6 +147,34 @@ function OrganizerHome() {
     }
     return null;
   };
+  const [franchises, setFranchises] = useState([]);
+  const [loadingFranchises, setLoadingFranchises] = useState(false);
+
+  // Add this useEffect to fetch franchises
+  // Inside your useEffect
+useEffect(() => {
+  const fetchFranchises = async () => {
+    setLoadingFranchises(true);
+    try {
+      const response = await getAllFranchises();
+      // Transform the data to match the expected structure
+      const transformedFranchises = response.franchises.map(franchise => ({
+        id: franchise._id,
+        name: franchise.franchiseName,
+        owner: franchise.ownerName,
+        location: franchise.whatsappNumber, // Using whatsappNumber as location
+        status: 'Active' // Default status since it doesn't exist in the model
+      }));
+      setFranchises(transformedFranchises);
+    } catch (error) {
+      console.error("Error fetching franchises:", error);
+    } finally {
+      setLoadingFranchises(false);
+    }
+  };
+
+  fetchFranchises();
+}, []);
 
   return (
     <OrganizerLayout>
@@ -394,6 +423,168 @@ function OrganizerHome() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Franchise Owners Section */}
+        <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8">
+          <div className="p-5 border-b border-gray-700 flex justify-between items-center">
+            <h3 className="text-xl font-semibold text-white">
+              Franchise Owners
+            </h3>
+            <button className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition duration-300 flex items-center">
+              <svg
+                className="w-4 h-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              Add New Franchise
+            </button>
+          </div>
+          
+          {loadingFranchises ? (
+            <div className="p-8 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-500 mb-2"></div>
+              <p className="text-gray-400">Loading franchise data...</p>
+            </div>
+          ) : franchises && franchises.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-700">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Owner
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {franchises.map((franchise) => (
+                    <tr
+                    key={franchise.id} // Changed from _id to id
+                    className="hover:bg-gray-700 transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                      {franchise.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {franchise.owner}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {franchise.location}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span
+                        className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"
+                      >
+                        {franchise.status}
+                      </span>
+                    </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        <div className="flex space-x-2">
+                          <button className="text-blue-400 hover:text-blue-300 transition-colors">
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
+                            </svg>
+                          </button>
+                          <button className="text-yellow-400 hover:text-yellow-300 transition-colors">
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <svg
+                className="w-16 h-16 text-gray-600 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                />
+              </svg>
+              <p className="text-gray-400 text-lg">No franchises found</p>
+              <p className="text-gray-500 mt-1">
+                Add your first franchise to get started
+              </p>
+              <button className="mt-4 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 inline-flex items-center">
+                <svg
+                  className="w-4 h-4 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
+                Create First Franchise
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tournaments Table */}
