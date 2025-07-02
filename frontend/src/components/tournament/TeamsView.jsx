@@ -24,14 +24,17 @@ const TeamsView = ({ tournamentId, events }) => {
 
     setRemovingFranchiseId ] = useState ( null ) ;
 
-  const [newTeam, setNewTeam] = useState({
-    playerName: '',
-    email: '',
-    phone: '',
-    eventId: '',
-    franchiseId: '',
-    registrationSource: 'offline' // Added to track if team was added by organizer
-  });
+    const [newTeam, setNewTeam] = useState({
+      playerName: '',
+      email: '',
+      phone: '',
+      eventId: '',
+      franchiseId: '',
+      dateOfBirth: '',
+      gender: '',
+      tShirtSize: '',
+      registrationSource: 'offline' // Added to track if team was added by organizer
+    });
   const [isAddingTeam, setIsAddingTeam] = useState(false);
 
   useEffect(() => {
@@ -170,7 +173,7 @@ const TeamsView = ({ tournamentId, events }) => {
   const handleAddTeam = async (e) => {
     e.preventDefault();
     
-    if (!newTeam.playerName || !newTeam.email || !newTeam.phone || !newTeam.eventId) {
+    if (!newTeam.playerName || !newTeam.email || !newTeam.phone || !newTeam.eventId || !newTeam.dateOfBirth || !newTeam.gender || !newTeam.tShirtSize) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -186,6 +189,9 @@ const TeamsView = ({ tournamentId, events }) => {
         email: newTeam.email,
         phone: newTeam.phone,
         franchiseId: newTeam.franchiseId || null,
+        dateOfBirth: newTeam.dateOfBirth,
+        gender: newTeam.gender,
+        tShirtSize: newTeam.tShirtSize,
         registrationSource: 'offline' // Mark as added by organizer
       });
       
@@ -207,6 +213,9 @@ const TeamsView = ({ tournamentId, events }) => {
         phone: '',
         eventId: '',
         franchiseId: '',
+        dateOfBirth: '',
+        gender: '',
+        tShirtSize: '',
         registrationSource: 'offline'
       });
       setShowAddTeamModal(false);
@@ -557,6 +566,58 @@ const TeamsView = ({ tournamentId, events }) => {
                   ))}
                 </select>
               </div>
+
+              <div className="mb-4">
+  <label className="block text-sm font-medium text-gray-300 mb-1">
+    Date of Birth
+  </label>
+  <input
+    type="date"
+    name="dateOfBirth"
+    value={newTeam.dateOfBirth}
+    onChange={handleInputChange}
+    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+    required
+  />
+</div>
+
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-300 mb-1">
+    Gender
+  </label>
+  <select
+    name="gender"
+    value={newTeam.gender}
+    onChange={handleInputChange}
+    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+    required
+  >
+    <option value="">Select Gender</option>
+    <option value="Male">Male</option>
+    <option value="Female">Female</option>
+    <option value="Other">Other</option>
+  </select>
+</div>
+
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-300 mb-1">
+    T-Shirt Size
+  </label>
+  <select
+    name="tShirtSize"
+    value={newTeam.tShirtSize}
+    onChange={handleInputChange}
+    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+    required
+  >
+    <option value="">Select T-Shirt Size</option>
+    <option value="S">S</option>
+    <option value="M">M</option>
+    <option value="L">L</option>
+    <option value="XL">XL</option>
+    <option value="XXL">XXL</option>
+  </select>
+</div>
               
               <div className="flex justify-end space-x-3 mt-6">
                 <button
