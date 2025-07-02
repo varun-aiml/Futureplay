@@ -171,3 +171,80 @@ exports.deleteAuction = async (req, res) => {
       });
     }
   };
+
+  // Get auctions for a specific tournament
+exports.getTournamentAuctions = async (req, res) => {
+    try {
+      const auctions = await Auction.find({ tournament: req.params.tournamentId });
+      res.status(200).json({
+        success: true,
+        count: auctions.length,
+        data: auctions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Server Error',
+        error: error.message
+      });
+    }
+  };
+  
+  // Get today's auctions for a specific tournament
+  exports.getTodayAuctions = async (req, res) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+  
+      const auctions = await Auction.find({
+        tournament: req.params.tournamentId,
+        auctionDate: {
+          $gte: today,
+          $lt: tomorrow
+        }
+      });
+  
+      res.status(200).json({
+        success: true,
+        count: auctions.length,
+        data: auctions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Server Error',
+        error: error.message
+      });
+    }
+  };
+  
+  // Get upcoming auctions for a specific tournament
+  exports.getUpcomingAuctions = async (req, res) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+  
+      const auctions = await Auction.find({
+        tournament: req.params.tournamentId,
+        auctionDate: {
+          $gte: tomorrow
+        }
+      });
+  
+      res.status(200).json({
+        success: true,
+        count: auctions.length,
+        data: auctions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Server Error',
+        error: error.message
+      });
+    }
+  };

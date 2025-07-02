@@ -6,7 +6,10 @@ const {
   getOrganizerAuctions,
   getAuctionById,
   updateAuction,
-  deleteAuction
+  deleteAuction,
+  getTournamentAuctions,
+  getTodayAuctions,
+  getUpcomingAuctions
 } = require('../controllers/auctionController');
 
 // All routes are protected and require authentication
@@ -21,5 +24,15 @@ router.route('/:id')
   .get(getAuctionById)
   .put(updateAuction)
   .delete(deleteAuction);
+
+// Tournament auction routes
+router.route('/tournament/:tournamentId')
+  .get(getTournamentAuctions);
+
+router.route('/tournament/:tournamentId/today')
+  .get(getTodayAuctions);
+
+router.route('/tournament/:tournamentId/upcoming')
+  .get(getUpcomingAuctions);
 
 module.exports = router;

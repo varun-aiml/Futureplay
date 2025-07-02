@@ -26,6 +26,7 @@ import PlayerTournamentDetails from "./pages/PlayerTournamentDetails";
 import Players from "./pages/Players";
 import FranchiseRegistration from "./pages/FranchiseRegistration";
 import Auctions from "./pages/Auctions";
+import SuperAuction from "./pages/SuperAuction";
 
 function App() {
   return (
@@ -118,6 +119,14 @@ function App() {
               element={
                 <FranchisePrivateRoute>
                   <FranchiseDashboard />
+                </FranchisePrivateRoute>
+              }
+            />
+            <Route
+              path="/franchise/super-auction"
+              element={
+                <FranchisePrivateRoute>
+                  <SuperAuction />
                 </FranchisePrivateRoute>
               }
             />
