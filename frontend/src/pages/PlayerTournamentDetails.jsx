@@ -18,6 +18,9 @@ const PlayerTournamentDetails = () => {
     name: "",
     email: "",
     phone: "",
+    dateOfBirth: "",
+    gender: "Male",
+    tShirtSize: "M"
   });
 
   useEffect(() => {
@@ -66,29 +69,39 @@ const PlayerTournamentDetails = () => {
   };
 
   // Handle booking submission
-  const handleSubmitBooking = async (e) => {
-    e.preventDefault();
-    try {
-      const bookingData = {
-        tournamentId: tournament._id,
-        eventId: selectedEvent._id,
-        playerName: bookingForm.name,
-        email: bookingForm.email,
-        phone: bookingForm.phone,
-      };
+const handleSubmitBooking = async (e) => {
+  e.preventDefault();
+  try {
+    const bookingData = {
+      tournamentId: tournament._id,
+      eventId: selectedEvent._id,
+      playerName: bookingForm.name,
+      email: bookingForm.email,
+      phone: bookingForm.phone,
+      dateOfBirth: bookingForm.dateOfBirth,
+      gender: bookingForm.gender,
+      tShirtSize: bookingForm.tShirtSize
+    };
 
-      await createBooking(bookingData);
-      toast.success(`Successfully booked for ${selectedEvent.name}`);
+    await createBooking(bookingData);
+    toast.success(`Successfully booked for ${selectedEvent.name}`);
 
-      // Reset form and close modal
-      setBookingForm({ name: "", email: "", phone: "" });
-      setShowBookingForm(false);
-      setSelectedEvent(null);
-    } catch (error) {
-      console.error("Booking error:", error);
-      toast.error(error.response?.data?.message || "Failed to book event");
-    }
-  };
+    // Reset form and close modal
+    setBookingForm({ 
+      name: "", 
+      email: "", 
+      phone: "", 
+      dateOfBirth: "", 
+      gender: "Male", 
+      tShirtSize: "M" 
+    });
+    setShowBookingForm(false);
+    setSelectedEvent(null);
+  } catch (error) {
+    console.error("Booking error:", error);
+    toast.error(error.response?.data?.message || "Failed to book event");
+  }
+};
 
   // Go back to tournaments list
   const handleBackClick = () => {
@@ -399,96 +412,161 @@ const PlayerTournamentDetails = () => {
       )}
 
       {/* Booking Form Modal */}
-      {showBookingForm && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-              onClick={() => {
-                setShowBookingForm(false);
-                setSelectedEvent(null);
-                setBookingForm({ name: "", email: "", phone: "" });
-              }}
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+      // ... existing code ...
 
-            <h2 className="text-xl font-bold text-white mb-4">
-              Book Event: {selectedEvent.name}
-            </h2>
-            <p className="text-gray-300 mb-4">
-              Entry Fee: ₹{selectedEvent.entryFee}
-            </p>
+{/* Booking Form Modal */}
+{showBookingForm && selectedEvent && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div className="bg-gray-800 rounded-xl max-w-md w-full p-6 relative">
+      <button
+        className="absolute top-4 right-4 text-gray-400 hover:text-white"
+        onClick={() => {
+          setShowBookingForm(false);
+          setSelectedEvent(null);
+          setBookingForm({ 
+            name: "", 
+            email: "", 
+            phone: "", 
+            dateOfBirth: "", 
+            gender: "Male", 
+            tShirtSize: "M" 
+          });
+        }}
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
 
-            <form onSubmit={handleSubmitBooking}>
-              <div className="mb-4">
-                <label className="block text-gray-300 mb-2" htmlFor="name">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={bookingForm.name}
-                  onChange={handleInputChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                />
-              </div>
+      <h2 className="text-xl font-bold text-white mb-4">
+        Book Event: {selectedEvent.name}
+      </h2>
+      <p className="text-gray-300 mb-4">
+        Entry Fee: ₹{selectedEvent.entryFee}
+      </p>
 
-              <div className="mb-4">
-                <label className="block text-gray-300 mb-2" htmlFor="email">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={bookingForm.email}
-                  onChange={handleInputChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                />
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-gray-300 mb-2" htmlFor="phone">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={bookingForm.phone}
-                  onChange={handleInputChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300"
-              >
-                Confirm Booking
-              </button>
-            </form>
-          </div>
+      <form onSubmit={handleSubmitBooking}>
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2" htmlFor="name">
+            Full Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            value={bookingForm.name}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          />
         </div>
-      )}
+
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2" htmlFor="email">
+            Email <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={bookingForm.email}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2" htmlFor="phone">
+            Phone Number <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="tel"
+            id="phone"
+            name="phone"
+            value={bookingForm.phone}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          />
+        </div>
+        
+        {/* New fields */}
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2" htmlFor="dateOfBirth">
+            Date of Birth <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            id="dateOfBirth"
+            name="dateOfBirth"
+            value={bookingForm.dateOfBirth}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          />
+          <p className="text-yellow-500 text-xs mt-1">Note: Please carry a Government ID Proof when you arrive.</p>
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2" htmlFor="gender">
+            Gender <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="gender"
+            name="gender"
+            value={bookingForm.gender}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          >
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-gray-300 mb-2" htmlFor="tShirtSize">
+            T-shirt Size <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="tShirtSize"
+            name="tShirtSize"
+            value={bookingForm.tShirtSize}
+            onChange={handleInputChange}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            required
+          >
+            <option value="S">S - 38</option>
+            <option value="M">M - 40</option>
+            <option value="L">L - 42</option>
+            <option value="XL">XL - 44</option>
+            <option value="XXL">XXL - 45</option>
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300"
+        >
+          Confirm Booking
+        </button>
+      </form>
+    </div>
+  </div>
+)}
     </div>
   );
 };

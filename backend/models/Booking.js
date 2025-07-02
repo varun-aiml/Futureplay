@@ -23,6 +23,21 @@ const BookingSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide phone number']
   },
+  // New fields
+  dateOfBirth: {
+    type: Date,
+    required: [true, 'Please provide date of birth']
+  },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other'],
+    required: [true, 'Please provide gender']
+  },
+  tShirtSize: {
+    type: String,
+    enum: ['S', 'M', 'L', 'XL', 'XXL'],
+    required: [true, 'Please provide T-shirt size']
+  },
   status: {
     type: String,
     enum: ['Pending', 'Confirmed', 'Cancelled'],

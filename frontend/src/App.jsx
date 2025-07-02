@@ -23,6 +23,7 @@ import FranchiseDashboard from "./pages/FranchiseDashboard";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PlayerTournamentDetails from "./pages/PlayerTournamentDetails";
+import Players from "./pages/Players";
 
 function App() {
   return (
@@ -89,6 +90,15 @@ function App() {
                 </PrivateRoute>
               }
             />
+
+<Route
+  path="/organizer/players"
+  element={
+    <PrivateRoute>
+      <Players />
+    </PrivateRoute>
+  }
+/>
             
             {/* Franchise routes */}
             <Route path="/franchise/login" element={<FranchiseLogin />} />
