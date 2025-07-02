@@ -101,6 +101,17 @@ export default function OrganizerLayout({ children }) {
               {isSidebarOpen && <span>Players</span>}
             </Link>
 
+             {/* Auction Link */}
+             <Link 
+              to="/organizer/auctions" 
+              className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-red-400 transition-colors duration-200 ${isActiveRoute('/organizer/auctions') ? 'bg-gray-700 text-red-400 border-l-4 border-red-500' : ''}`}
+            >
+              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              {isSidebarOpen && <span>Auction</span>}
+            </Link>
+
             <Link 
               to="/organizer/settings" 
               className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-red-400 transition-colors duration-200 ${isActiveRoute('/organizer/settings') ? 'bg-gray-700 text-red-400 border-l-4 border-red-500' : ''}`}
@@ -166,12 +177,13 @@ export default function OrganizerLayout({ children }) {
                 </svg>
               </button>
             )}
-            <h2 className="text-xl font-bold text-white">
+                        <h2 className="text-xl font-bold text-white">
               {isActiveRoute('/organizer/home') && 'Dashboard'}
               {isActiveRoute('/organizer/tournaments') && 'Tournaments'}
               {isActiveRoute('/organizer/players') && 'Players'}
               {isActiveRoute('/organizer/settings') && 'Settings'}
               {isActiveRoute('/organizer/analytics') && 'Analytics'}
+              {isActiveRoute('/organizer/auctions') && 'Auctions'}
             </h2>
           </div>
           

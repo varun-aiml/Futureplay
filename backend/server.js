@@ -11,6 +11,7 @@ const tournamentRoutes = require('./routes/tournamentRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const reverseGeocodeRoute = require('./routes/reverseGeoCode');
 const franchiseRoutes = require('./routes/franchiseRoutes');
+const auctionRoutes = require('./routes/auctionRoutes');
 
 
 // Connect to database
@@ -46,6 +47,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/bookings', bookingRoutes); 
 app.use('/api/reverse-geocode', reverseGeocodeRoute);
 app.use('/api/franchise', franchiseRoutes);
+app.use('/api/auctions', auctionRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

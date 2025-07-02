@@ -25,6 +25,7 @@ import "react-toastify/dist/ReactToastify.css";
 import PlayerTournamentDetails from "./pages/PlayerTournamentDetails";
 import Players from "./pages/Players";
 import FranchiseRegistration from "./pages/FranchiseRegistration";
+import Auctions from "./pages/Auctions";
 
 function App() {
   return (
@@ -100,6 +101,14 @@ function App() {
     </PrivateRoute>
   }
 />
+<Route
+              path="/organizer/auctions"
+              element={
+                <PrivateRoute>
+                  <Auctions />
+                </PrivateRoute>
+              }
+            />
             
             {/* Franchise routes */}
             <Route path="/franchise/registration" element={<FranchiseRegistration />} />
