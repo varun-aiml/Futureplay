@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking');
 const Tournament = require('../models/Tournament');
+const Franchise = require('../models/Franchise');
 
 // Create a new booking
 exports.createBooking = async (req, res) => {
@@ -54,6 +55,89 @@ exports.createBooking = async (req, res) => {
     res.status(400).json({
       success: false,
       message: 'Failed to create booking',
+      error: error.message
+    });
+  }
+};
+
+exports.associateTeamWithFranchise = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { franchiseId } = req.body;
+    
+    // console.log('Associating team with franchise:', { bookingId, franchiseId });
+
+    // Verify the booking exists
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+    
+    // console.log('Booking found:', booking);
+
+    // Verify the franchise exists
+    const franchise = await Franchise.findById(franchiseId);
+    if (!franchise) {
+      return res.status(404).json({
+        success: false,
+        message: 'Franchise not found'
+      });
+    }
+    
+    // console.log('Franchise found:', franchise);
+
+    // Update the booking with the franchise ID using findByIdAndUpdate to bypass validation
+    const updatedBooking = await Booking.findByIdAndUpdate(
+      bookingId,
+      { franchise: franchiseId },
+      { new: true, runValidators: false }
+    );
+    
+    // console.log('Booking updated successfully');
+
+    res.status(200).json({
+      success: true,
+      data: updatedBooking
+    });
+  } catch (error) {
+    console.error('Error in associateTeamWithFranchise:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// Get all franchises for a tournament
+exports.getTournamentFranchises = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+
+    // Verify the tournament exists
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    // Get all franchises for this tournament
+    const franchises = await Franchise.find({ tournament: tournamentId });
+
+    res.status(200).json({
+      success: true,
+      count: franchises.length,
+      data: franchises
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
       error: error.message
     });
   }

@@ -17,3 +17,15 @@ export const updateBookingStatus = async (bookingId, status) => {
   const response = await api.put(`/bookings/${bookingId}`, { status });
   return response;
 };
+
+// Associate a team with a franchise
+export const associateTeamWithFranchise = async (bookingId, franchiseId) => {
+  const response = await api.put(`/bookings/${bookingId}/franchise`, { franchiseId });
+  return response;
+};
+
+// Get all franchises for a tournament
+export const getTournamentFranchises = async (tournamentId) => {
+  const response = await api.get(`/bookings/tournament/${tournamentId}/franchises`);
+  return response;
+};

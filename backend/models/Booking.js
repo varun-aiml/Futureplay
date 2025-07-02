@@ -48,6 +48,12 @@ const BookingSchema = new mongoose.Schema({
     enum: ['online', 'offline'],
     default: 'online'
   },
+  // Add franchise field
+  franchise: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Franchise',
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

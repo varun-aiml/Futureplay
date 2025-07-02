@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getTournamentBookings, updateBookingStatus, createBooking } from '../../services/bookingService';
+import { getTournamentBookings, updateBookingStatus, createBooking, associateTeamWithFranchise, getTournamentFranchises } from '../../services/bookingService';
+import { getAllFranchises } from '../../services/franchiseService';
 import { toast } from 'react-toastify';
 
 const TeamsView = ({ tournamentId, events }) => {
@@ -14,14 +15,35 @@ const TeamsView = ({ tournamentId, events }) => {
   const [selectedEventId, setSelectedEventId] = useState('all');
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
+  const [franchises, setFranchises] = useState([]);
+  const [showAssignFranchiseModal, setShowAssignFranchiseModal] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState('');
+  const [isAssigningFranchise, setIsAssigningFranchise] = useState(false);
+
   const [newTeam, setNewTeam] = useState({
     playerName: '',
     email: '',
     phone: '',
     eventId: '',
+    franchiseId: '',
     registrationSource: 'offline' // Added to track if team was added by organizer
   });
   const [isAddingTeam, setIsAddingTeam] = useState(false);
+
+  useEffect(() => {
+    const fetchFranchises = async () => {
+      try {
+        // Replace getAllFranchises with getTournamentFranchises
+        const response = await getTournamentFranchises(tournamentId);
+        setFranchises(response.data.data || []); // Access franchises from response.data.data
+      } catch (error) {
+        console.error('Error fetching franchises:', error);
+      }
+    };
+    
+    fetchFranchises();
+  }, [tournamentId]);
   
   useEffect(() => {
     const fetchBookings = async () => {
@@ -81,6 +103,13 @@ const TeamsView = ({ tournamentId, events }) => {
     return event ? event.name : 'Unknown Event';
   };
 
+  // Get franchise name by ID
+  const getFranchiseName = (franchiseId) => {
+    if (!franchiseId) return 'Unassigned';
+    const franchise = franchises.find(f => f._id === franchiseId);
+    return franchise ? franchise.franchiseName : 'Unknown Franchise';
+  };
+
   // Handle status update
   const handleStatusUpdate = async (bookingId, newStatus) => {
     try {
@@ -117,7 +146,7 @@ const TeamsView = ({ tournamentId, events }) => {
     e.preventDefault();
     
     if (!newTeam.playerName || !newTeam.email || !newTeam.phone || !newTeam.eventId) {
-      toast.error('Please fill in all fields');
+      toast.error('Please fill in all required fields');
       return;
     }
     
@@ -131,6 +160,7 @@ const TeamsView = ({ tournamentId, events }) => {
         playerName: newTeam.playerName,
         email: newTeam.email,
         phone: newTeam.phone,
+        franchiseId: newTeam.franchiseId || null,
         registrationSource: 'offline' // Mark as added by organizer
       });
       
@@ -141,7 +171,8 @@ const TeamsView = ({ tournamentId, events }) => {
       setBookings(prev => [...prev, {
         ...response.data.data,
         status: 'Confirmed',
-        registrationSource: 'offline'
+        registrationSource: 'offline',
+        franchise: newTeam.franchiseId || null
       }]);
       
       // Reset form and close modal
@@ -150,6 +181,7 @@ const TeamsView = ({ tournamentId, events }) => {
         email: '',
         phone: '',
         eventId: '',
+        franchiseId: '',
         registrationSource: 'offline'
       });
       setShowAddTeamModal(false);
@@ -160,6 +192,40 @@ const TeamsView = ({ tournamentId, events }) => {
       toast.error(error.response?.data?.message || 'Failed to add team');
     } finally {
       setIsAddingTeam(false);
+    }
+  };
+
+  // Open assign franchise modal
+  const openAssignFranchiseModal = (bookingId) => {
+    setSelectedBookingId(bookingId);
+    const booking = bookings.find(b => b._id === bookingId);
+    setSelectedFranchiseId(booking.franchise || '');
+    setShowAssignFranchiseModal(true);
+  };
+
+  // Handle assign franchise
+  const handleAssignFranchise = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setIsAssigningFranchise(true);
+      
+      await associateTeamWithFranchise(selectedBookingId, selectedFranchiseId);
+      
+      // Update local state
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking._id === selectedBookingId ? { ...booking, franchise: selectedFranchiseId } : booking
+        )
+      );
+      
+      setShowAssignFranchiseModal(false);
+      toast.success('Team assigned to franchise successfully');
+    } catch (error) {
+      console.error('Error assigning franchise:', error);
+      toast.error(error.response?.data?.message || 'Failed to assign franchise');
+    } finally {
+      setIsAssigningFranchise(false);
     }
   };
   
@@ -261,6 +327,9 @@ const TeamsView = ({ tournamentId, events }) => {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Franchise
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -291,6 +360,9 @@ const TeamsView = ({ tournamentId, events }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {getFranchiseName(booking.franchise)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {updatingBookingId === booking._id ? (
                         <div className="flex items-center">
                           <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500 mr-2"></div>
@@ -317,6 +389,14 @@ const TeamsView = ({ tournamentId, events }) => {
                               Cancel
                             </button>
                           )}
+
+                          {/* Assign Franchise button */}
+                          <button
+                            onClick={() => openAssignFranchiseModal(booking._id)}
+                            className="bg-blue-700 hover:bg-blue-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+                          >
+                            Assign Franchise
+                          </button>
                         </div>
                       )}
                     </td>
@@ -423,6 +503,25 @@ const TeamsView = ({ tournamentId, events }) => {
                   required
                 />
               </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Franchise (Optional)
+                </label>
+                <select
+                  name="franchiseId"
+                  value={newTeam.franchiseId}
+                  onChange={handleInputChange}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Select Franchise (Optional)</option>
+                  {franchises.map(franchise => (
+                    <option key={franchise._id} value={franchise._id}>
+                      {franchise.franchiseName}
+                    </option>
+                  ))}
+                </select>
+              </div>
               
               <div className="flex justify-end space-x-3 mt-6">
                 <button
@@ -444,6 +543,81 @@ const TeamsView = ({ tournamentId, events }) => {
                     </>
                   ) : (
                     'Add Team'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Franchise Modal */}
+      {showAssignFranchiseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-white">Assign Franchise</h3>
+              <button
+                onClick={() => setShowAssignFranchiseModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleAssignFranchise}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Franchise
+                </label>
+                <select
+                  value={selectedFranchiseId}
+                  onChange={(e) => setSelectedFranchiseId(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                >
+                  <option value="">Unassigned</option>
+                  {franchises.map(franchise => (
+                    <option key={franchise._id} value={franchise._id}>
+                      {franchise.franchiseName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignFranchiseModal(false)}
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center"
+                  disabled={isAssigningFranchise}
+                >
+                  {isAssigningFranchise ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Assigning...
+                    </>
+                  ) : (
+                    'Assign Franchise'
                   )}
                 </button>
               </div>

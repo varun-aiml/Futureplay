@@ -25,6 +25,12 @@ const TabNavigation = ({ activeTab, setActiveTab }) => {
       >
         Fixtures
       </button>
+      <button
+        onClick={() => setActiveTab("franchiseOwners")}
+        className={`py-2 px-4 font-medium ${activeTab === "franchiseOwners" ? "text-red-500 border-b-2 border-red-500" : "text-gray-400 hover:text-white"}`}
+      >
+        Franchise Owners
+      </button>
     </div>
   );
 };

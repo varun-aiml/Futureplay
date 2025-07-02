@@ -15,6 +15,7 @@ import EventForm from "../components/tournament/EventForm";
 import EventsList from "../components/tournament/EventsList";
 import FixtureModal from "../components/tournament/FixtureModal";
 import TeamsView from "../components/tournament/TeamsView";
+import FranchiseOwnersView from "../components/tournament/FranchiseOwnersView";
 
 const TournamentDetail = () => {
   const { id } = useParams();
@@ -1069,6 +1070,10 @@ const editEventFixtures = (eventId) => {
             setShowImageModal={setShowImageModal}
           />
         )}
+
+{activeTab === "franchiseOwners" && (
+  <FranchiseOwnersView tournamentId={id} events={tournament.events} />
+)}
 
         {/* Events Tab Content */}
         {activeTab === "events" && (
