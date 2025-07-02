@@ -24,7 +24,7 @@ function FranchiseLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-
+  
     try {
       const response = await loginFranchise(formData.username, formData.password);
       loginFranchiseOwner(response.franchise);
@@ -32,12 +32,18 @@ function FranchiseLogin() {
       navigate('/franchise/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed. Please check your credentials.');
+      // Improved error handling with more specific messages
+      if (error.message && error.message.includes('ENOTFOUND')) {
+        toast.error('Cannot connect to database server. Please check your internet connection or try again later.');
+      } else if (error.response?.status === 401) {
+        toast.error('Invalid username or password. Please try again.');
+      } else {
+        toast.error(error.response?.data?.message || 'Login failed. Please try again later.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
-
   // Helper function to render required field label
   const renderLabel = (text, htmlFor) => (
     <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-300 mb-1">
@@ -103,10 +109,10 @@ function FranchiseLogin() {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-400 text-sm">
-            Don't have an account? <Link to="/" className="text-red-400 hover:text-red-300">Register as a franchise owner</Link>
-          </p>
-        </div>
+  <p className="text-gray-400 text-sm">
+    Don't have an account? <Link to="/franchise/registration" className="text-red-400 hover:text-red-300">Register as a franchise owner</Link>
+  </p>
+</div>
       </div>
     </div>
   );

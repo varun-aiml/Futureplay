@@ -29,6 +29,11 @@ const franchiseSchema = new mongoose.Schema({
     required: [true, 'WhatsApp number is required'],
     trim: true
   },
+  tournament: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tournament',
+    required: [true, 'Tournament selection is required']
+  },
   createdAt: {
     type: Date,
     default: Date.now

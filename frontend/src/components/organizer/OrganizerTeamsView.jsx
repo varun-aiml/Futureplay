@@ -1,65 +1,62 @@
 import { useState, useEffect } from 'react';
-import { useFranchise } from '../../context/franchiseContext';
+import { useAuth } from '../../context/authContext';
+import { getOrganizerTournaments } from '../../services/tournamentService';
 import { getTournamentBookings } from '../../services/bookingService';
-import { getTournamentById } from '../../services/tournamentService';
 
-const TeamsListView = () => {
-  const { franchise } = useFranchise();
+const OrganizerTeamsView = () => {
+  const { user } = useAuth();
+  const [tournaments, setTournaments] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tournamentName, setTournamentName] = useState('');
+  const [selectedTournamentId, setSelectedTournamentId] = useState('all');
   
-  // Fetch bookings for the franchise owner's tournament
+  // Fetch all tournaments created by this organizer
   useEffect(() => {
-    const fetchTournamentAndBookings = async () => {
-        if (!franchise || !franchise.tournament) {
-          setError('No tournament assigned to this franchise');
-          setIsLoading(false);
-          return;
-        }
-      
-        try {
-          setIsLoading(true);
-          
-          // Get tournament details to display the name
-          const tournamentResponse = await getTournamentById(franchise.tournament);
-          const tournamentData = tournamentResponse.data.data;
-          
-          // Add validation to ensure tournamentData exists
-          if (!tournamentData) {
-            throw new Error('Tournament data not found');
-          }
-          
-          setTournamentName(tournamentData.name);
-          
-          // Get bookings for this tournament
-          const bookingsResponse = await getTournamentBookings(franchise.tournament);
-          const bookingsData = bookingsResponse.data.data;
-          
-          // Validate that bookingsData is an array before using map
-          if (!Array.isArray(bookingsData)) {
-            setBookings([]);
-          } else {
+    const fetchTournamentsAndBookings = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Get all tournaments for this organizer
+        const tournamentsResponse = await getOrganizerTournaments();
+        const tournamentsData = tournamentsResponse.data.data;
+        setTournaments(tournamentsData);
+        
+        // Fetch bookings for all tournaments
+        const allBookings = [];
+        for (const tournament of tournamentsData) {
+          try {
+            const bookingsResponse = await getTournamentBookings(tournament._id);
+            const bookingsData = bookingsResponse.data.data;
+            
             // Add tournament name to each booking for display
             const bookingsWithTournamentName = bookingsData.map(booking => ({
               ...booking,
-              tournamentName: tournamentData.name
+              tournamentName: tournament.name
             }));
             
-            setBookings(bookingsWithTournamentName);
+            allBookings.push(...bookingsWithTournamentName);
+          } catch (err) {
+            console.error(`Error fetching bookings for tournament ${tournament._id}:`, err);
           }
-          
-          setIsLoading(false);
-        } catch (err) {
-          setError('Failed to load data. Please try again later.');
-          setIsLoading(false);
-          console.error('Error fetching data:', err);
         }
-      };
+        
+        setBookings(allBookings);
+        setIsLoading(false);
+      } catch (err) {
+        setError('Failed to load data. Please try again later.');
+        setIsLoading(false);
+        console.error('Error fetching data:', err);
+      }
+    };
     
-    fetchTournamentAndBookings();
-  }, [franchise]);
+    fetchTournamentsAndBookings();
+  }, []);
+  
+  // Filter bookings based on selected tournament
+  const filteredBookings = selectedTournamentId === 'all' 
+    ? bookings 
+    : bookings.filter(booking => booking.tournament === selectedTournamentId);
   
   // Get event name from event ID
   const getEventName = (eventId) => {
@@ -75,14 +72,24 @@ const TeamsListView = () => {
   
   return (
     <div className="mb-6">
-      {/* Tournament information */}
+      {/* Tournament filter */}
       <div className="mb-4">
-        <h3 className="text-lg font-medium text-white mb-2">
-          Tournament: {tournamentName || 'Loading...'}
-        </h3>
-        <p className="text-sm text-gray-400">
-          Showing all teams registered for this tournament
-        </p>
+        <label htmlFor="tournamentFilter" className="block text-sm font-medium text-gray-300 mb-2">
+          Filter by Tournament
+        </label>
+        <select
+          id="tournamentFilter"
+          className="bg-gray-700 text-white rounded-md px-4 py-2 w-full md:w-64"
+          value={selectedTournamentId}
+          onChange={(e) => setSelectedTournamentId(e.target.value)}
+        >
+          <option value="all">All Tournaments</option>
+          {tournaments.map((tournament) => (
+            <option key={tournament._id} value={tournament._id}>
+              {tournament.name}
+            </option>
+          ))}
+        </select>
       </div>
       
       {isLoading ? (
@@ -93,7 +100,7 @@ const TeamsListView = () => {
         <div className="bg-red-500 bg-opacity-20 text-red-300 p-4 rounded-md">
           {error}
         </div>
-      ) : bookings.length > 0 ? (
+      ) : filteredBookings.length > 0 ? (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-700">
@@ -104,6 +111,9 @@ const TeamsListView = () => {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Event
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Tournament
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Email
@@ -132,13 +142,16 @@ const TeamsListView = () => {
                 </tr>
               </thead>
               <tbody className="bg-gray-800 divide-y divide-gray-700">
-                {bookings.map((booking) => (
+                {filteredBookings.map((booking) => (
                   <tr key={booking._id} className="hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       {booking.playerName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {getEventName(booking.event)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {booking.tournamentName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {booking.email}
@@ -177,7 +190,7 @@ const TeamsListView = () => {
       ) : (
         <div className="bg-gray-800 rounded-xl p-6 text-center">
           <p className="text-gray-400">
-            No teams registered for this tournament yet.
+            No teams registered for {selectedTournamentId === 'all' ? 'any tournaments' : 'this tournament'} yet.
           </p>
         </div>
       )}
@@ -185,4 +198,4 @@ const TeamsListView = () => {
   );
 };
 
-export default TeamsListView;
+export default OrganizerTeamsView;

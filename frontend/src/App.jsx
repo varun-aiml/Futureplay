@@ -24,6 +24,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import PlayerTournamentDetails from "./pages/PlayerTournamentDetails";
 import Players from "./pages/Players";
+import FranchiseRegistration from "./pages/FranchiseRegistration";
 
 function App() {
   return (
@@ -101,6 +102,7 @@ function App() {
 />
             
             {/* Franchise routes */}
+            <Route path="/franchise/registration" element={<FranchiseRegistration />} />
             <Route path="/franchise/login" element={<FranchiseLogin />} />
             <Route
               path="/franchise/dashboard"
