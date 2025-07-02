@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAllFranchises } from '../../services/franchiseService';
-import { getTournamentBookings, associateTeamWithFranchise } from '../../services/bookingService';
+import { getTournamentBookings, associateTeamWithFranchise, removeTeamFromFranchise } from '../../services/bookingService';
 import { toast } from 'react-toastify';
 
 const FranchiseOwnersView = ({ tournamentId, events }) => {
@@ -11,6 +11,7 @@ const FranchiseOwnersView = ({ tournamentId, events }) => {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [showTeamsList, setShowTeamsList] = useState(false);
   const [isAssociating, setIsAssociating] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   // Fetch franchises and bookings
   useEffect(() => {
@@ -20,10 +21,10 @@ const FranchiseOwnersView = ({ tournamentId, events }) => {
         
         // Get all franchises
         const franchisesResponse = await getAllFranchises();
-// Filter franchises for this tournament
-const tournamentFranchises = (franchisesResponse.franchises || []).filter(
-  franchise => franchise.tournament === tournamentId
-);
+        // Filter franchises for this tournament
+        const tournamentFranchises = (franchisesResponse.franchises || []).filter(
+          franchise => franchise.tournament === tournamentId
+        );
         setFranchises(tournamentFranchises);
         
         // Get all bookings for this tournament
@@ -74,6 +75,28 @@ const tournamentFranchises = (franchisesResponse.franchises || []).filter(
       toast.error(error.response?.data?.message || 'Failed to associate team');
     } finally {
       setIsAssociating(false);
+    }
+  };
+
+  // Handle removing team from franchise
+  const handleRemoveTeam = async (bookingId) => {
+    try {
+      setIsRemoving(true);
+      await removeTeamFromFranchise(bookingId);
+      
+      // Update local state
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking._id === bookingId ? { ...booking, franchise: null } : booking
+        )
+      );
+      
+      toast.success(`Team successfully removed from ${selectedFranchise.franchiseName}`);
+    } catch (error) {
+      console.error('Error removing team:', error);
+      toast.error(error.response?.data?.message || 'Failed to remove team');
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -143,6 +166,7 @@ const tournamentFranchises = (franchisesResponse.franchises || []).filter(
                           <tr>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Team Name</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Event</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-600">
@@ -150,6 +174,15 @@ const tournamentFranchises = (franchisesResponse.franchises || []).filter(
                             <tr key={team._id} className="hover:bg-gray-600">
                               <td className="px-4 py-2 whitespace-nowrap text-sm text-white">{team.playerName}</td>
                               <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-300">{getEventName(team.event)}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-sm">
+                                <button
+                                  onClick={() => handleRemoveTeam(team._id)}
+                                  disabled={isRemoving}
+                                  className="bg-gray-600 hover:bg-gray-700 text-white text-xs py-1 px-2 rounded transition-colors"
+                                >
+                                  {isRemoving ? 'Removing...' : 'Remove'}
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>

@@ -6,6 +6,7 @@ const {
   getTournamentBookings,
   updateBookingStatus,
   associateTeamWithFranchise,
+  removeTeamFromFranchise,
   getTournamentFranchises
 } = require('../controllers/bookingController');
 
@@ -19,6 +20,7 @@ router.put('/:bookingId', updateBookingStatus);
 
 // New routes for franchise-team association
 router.put('/:bookingId/franchise', associateTeamWithFranchise);
+router.delete('/:bookingId/franchise', removeTeamFromFranchise);
 router.get('/tournament/:tournamentId/franchises', getTournamentFranchises);
 
 module.exports = router;

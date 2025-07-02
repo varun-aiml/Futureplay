@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getTournamentBookings, updateBookingStatus, createBooking, associateTeamWithFranchise, getTournamentFranchises } from '../../services/bookingService';
+import { getTournamentBookings, updateBookingStatus, createBooking, associateTeamWithFranchise, removeTeamFromFranchise, getTournamentFranchises } from '../../services/bookingService';
 import { getAllFranchises } from '../../services/franchiseService';
 import { toast } from 'react-toastify';
 
@@ -20,6 +20,9 @@ const TeamsView = ({ tournamentId, events }) => {
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [selectedFranchiseId, setSelectedFranchiseId] = useState('');
   const [isAssigningFranchise, setIsAssigningFranchise] = useState(false);
+  const [ removingFranchiseId ,
+
+    setRemovingFranchiseId ] = useState ( null ) ;
 
   const [newTeam, setNewTeam] = useState({
     playerName: '',
@@ -82,6 +85,28 @@ const TeamsView = ({ tournamentId, events }) => {
     
     fetchBookings();
   }, [tournamentId]);
+
+  const handleRemoveFromFranchise = async (bookingId) => {
+    try {
+      setRemovingFranchiseId(bookingId);
+      
+      await removeTeamFromFranchise(bookingId);
+      
+      // Update local state
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking._id === bookingId ? { ...booking, franchise: null } : booking
+        )
+      );
+      
+      toast.success('Team removed from franchise successfully');
+    } catch (error) {
+      console.error('Error removing team from franchise:', error);
+      toast.error(error.response?.data?.message || 'Failed to remove team from franchise');
+    } finally {
+      setRemovingFranchiseId(null);
+    }
+  };
   
   // Filter bookings by selected event
   const filteredBookings = selectedEventId === 'all' 
@@ -363,43 +388,53 @@ const TeamsView = ({ tournamentId, events }) => {
                       {getFranchiseName(booking.franchise)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {updatingBookingId === booking._id ? (
-                        <div className="flex items-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500 mr-2"></div>
-                          <span>Updating...</span>
-                        </div>
-                      ) : (
-                        <div className="flex space-x-2">
-                          {/* Show confirm button for cancelled teams */}
-                          {booking.status !== 'Confirmed' && (
-                            <button
-                              onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
-                              className="bg-green-700 hover:bg-green-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
-                            >
-                              Confirm
-                            </button>
-                          )}
-                          
-                          {/* Only show cancel button for non-cancelled teams */}
-                          {booking.status !== 'Cancelled' && (
-                            <button
-                              onClick={() => handleStatusUpdate(booking._id, 'Cancelled')}
-                              className="bg-red-700 hover:bg-red-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
-                            >
-                              Cancel
-                            </button>
-                          )}
+      {updatingBookingId === booking._id || removingFranchiseId === booking._id ? (
+        <div className="flex items-center">
+          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500 mr-2"></div>
+          <span>Updating...</span>
+        </div>
+      ) : (
+        <div className="flex space-x-2">
+          {/* Show confirm button for cancelled teams */}
+          {booking.status !== 'Confirmed' && (
+            <button
+              onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
+              className="bg-green-700 hover:bg-green-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+            >
+              Confirm
+            </button>
+          )}
+          
+          {/* Only show cancel button for non-cancelled teams */}
+          {booking.status !== 'Cancelled' && (
+            <button
+              onClick={() => handleStatusUpdate(booking._id, 'Cancelled')}
+              className="bg-red-700 hover:bg-red-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+            >
+              Cancel
+            </button>
+          )}
 
-                          {/* Assign Franchise button */}
-                          <button
-                            onClick={() => openAssignFranchiseModal(booking._id)}
-                            className="bg-blue-700 hover:bg-blue-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
-                          >
-                            Assign Franchise
-                          </button>
-                        </div>
-                      )}
-                    </td>
+          {/* Show Remove button for teams assigned to a franchise */}
+          {booking.franchise ? (
+            <button
+              onClick={() => handleRemoveFromFranchise(booking._id)}
+              className="bg-yellow-700 hover:bg-yellow-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+            >
+              Remove
+            </button>
+          ) : (
+            /* Assign Franchise button */
+            <button
+              onClick={() => openAssignFranchiseModal(booking._id)}
+              className="bg-blue-700 hover:bg-blue-600 text-white text-xs py-1 px-2 rounded transition-colors duration-300"
+            >
+              Assign Franchise
+            </button>
+          )}
+        </div>
+      )}
+    </td>
                   </tr>
                 ))}
               </tbody>

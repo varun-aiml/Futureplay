@@ -60,6 +60,41 @@ exports.createBooking = async (req, res) => {
   }
 };
 
+// Remove a team from a franchise
+exports.removeTeamFromFranchise = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    // Verify the booking exists
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+    
+    // Update the booking to remove franchise association
+    const updatedBooking = await Booking.findByIdAndUpdate(
+      bookingId,
+      { franchise: null },
+      { new: true, runValidators: false }
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: updatedBooking
+    });
+  } catch (error) {
+    console.error('Error in removeTeamFromFranchise:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
 exports.associateTeamWithFranchise = async (req, res) => {
   try {
     const { bookingId } = req.params;

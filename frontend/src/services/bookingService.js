@@ -24,6 +24,12 @@ export const associateTeamWithFranchise = async (bookingId, franchiseId) => {
   return response;
 };
 
+// Remove a team from a franchise
+export const removeTeamFromFranchise = async (bookingId) => {
+  const response = await api.delete(`/bookings/${bookingId}/franchise`);
+  return response;
+};
+
 // Get all franchises for a tournament
 export const getTournamentFranchises = async (tournamentId) => {
   const response = await api.get(`/bookings/tournament/${tournamentId}/franchises`);
