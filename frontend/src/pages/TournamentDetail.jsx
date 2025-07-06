@@ -16,6 +16,7 @@ import EventsList from "../components/tournament/EventsList";
 import FixtureModal from "../components/tournament/FixtureModal";
 import TeamsView from "../components/tournament/TeamsView";
 import FranchiseOwnersView from "../components/tournament/FranchiseOwnersView";
+import FranchiseFixturesView from '../components/tournament/FranchiseFixturesView';
 
 const TournamentDetail = () => {
   const { id } = useParams();
@@ -53,6 +54,9 @@ const TournamentDetail = () => {
   const [eventFixtures, setEventFixtures] = useState({});
   const [isGeneratingFixtures, setIsGeneratingFixtures] = useState(false);
   const [fixtureError, setFixtureError] = useState('');
+  
+  // New state for franchise fixtures view
+  const [showFranchiseFixtures, setShowFranchiseFixtures] = useState(false);
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -995,6 +999,11 @@ const editEventFixtures = (eventId) => {
     }
   };
 
+  // Toggle between fixture generation and franchise fixtures view
+  const toggleFranchiseFixtures = () => {
+    setShowFranchiseFixtures(!showFranchiseFixtures);
+  };
+
   if (isLoading) {
     return (
       <OrganizerLayout>
@@ -1141,108 +1150,126 @@ const editEventFixtures = (eventId) => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-white">Fixtures</h2>
               
-              {/* Event filter dropdown */}
-              <div className="relative">
-                <select
-                  value={selectedFixtureEventId || ''}
-                  onChange={(e) => setSelectedFixtureEventId(e.target.value)}
-                  className="bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-red-500"
+              <div className="flex space-x-2">
+                {/* Toggle button for franchise fixtures view */}
+                <button
+                  onClick={toggleFranchiseFixtures}
+                  className={`${showFranchiseFixtures ? 'bg-red-600' : 'bg-gray-700'} hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300`}
                 >
-                  <option value="" disabled>Select Event</option>
-                  {tournament.events && tournament.events.map(event => (
-                    <option key={event._id} value={event._id}>
-                      {event.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
-                  </svg>
-                </div>
+                  {showFranchiseFixtures ? 'Show Event Fixtures' : 'Manage Franchise Teams'}
+                </button>
+                
+                {/* Event filter dropdown (only show when not in franchise view) */}
+                {!showFranchiseFixtures && (
+                  <div className="relative">
+                    <select
+                      value={selectedFixtureEventId || ''}
+                      onChange={(e) => setSelectedFixtureEventId(e.target.value)}
+                      className="bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <option value="" disabled>Select Event</option>
+                      {tournament.events && tournament.events.map(event => (
+                        <option key={event._id} value={event._id}>
+                          {event.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                      <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
+                      </svg>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {selectedFixtureEventId ? (
-              <div className="bg-gray-800 rounded-xl p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">
-                      {getEventName(selectedFixtureEventId)}
-                    </h3>
-                    <p className="text-sm text-gray-400">
-                      {getEventDetails(selectedFixtureEventId)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
-                    className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center"
-                    disabled={isGeneratingFixtures}
-                  >
-                    {isGeneratingFixtures ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 mr-1"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
-                          />
-                        </svg>
-                        Generate Fixtures
-                      </>
-                    )}
-                  </button>
-                </div>
-                
-                {fixtureError && (
-                  <div className="bg-red-500 bg-opacity-20 text-red-300 p-4 rounded-md mb-4">
-                    {fixtureError}
-                  </div>
-                )}
-                
-                {eventFixtures[selectedFixtureEventId] ? (
-                  <div className="text-white">
-                     <p className="mb-4">Fixtures have been generated for this event. Click the buttons below to view or edit them.</p>
-                     <div className="flex space-x-3">
-      <button
-        onClick={() => viewEventFixtures(selectedFixtureEventId)}
-        className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
-      >
-        View Fixtures
-      </button>
-      <button
-        onClick={() => editEventFixtures(selectedFixtureEventId)}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
-      >
-        Edit Fixtures
-      </button>
-    </div>
-                  </div>
-                ) : (
-                  <div className="text-gray-400 text-center py-8">
-                    <p>No fixtures have been generated for this event yet.</p>
-                    <p className="text-sm mt-2">Click the 'Generate Fixtures' button to create fixtures based on registered teams.</p>
-                  </div>
-                )}
-              </div>
+            {/* Franchise Fixtures View */}
+            {showFranchiseFixtures ? (
+              <FranchiseFixturesView tournamentId={id} events={tournament.events || []} />
             ) : (
-              <div className="bg-gray-800 rounded-xl p-6 text-center">
-                <p className="text-gray-400">
-                  Please select an event to generate or view fixtures.
-                </p>
+              // Regular Fixtures View
+              selectedFixtureEventId ? (
+                <div className="bg-gray-800 rounded-xl p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h3 className="text-lg font-medium text-white">
+                        {getEventName(selectedFixtureEventId)}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {getEventDetails(selectedFixtureEventId)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
+                      className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center"
+                      disabled={isGeneratingFixtures}
+                    >
+                      {isGeneratingFixtures ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5 mr-1"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
+                            />
+                          </svg>
+                          Generate Fixtures
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {fixtureError && (
+                    <div className="bg-red-500 bg-opacity-20 text-red-300 p-4 rounded-md mb-4">
+                      {fixtureError}
+                    </div>
+                  )}
+                  
+                  {eventFixtures[selectedFixtureEventId] ? (
+                    <div className="text-white">
+                       <p className="mb-4">Fixtures have been generated for this event. Click the buttons below to view or edit them.</p>
+                       <div className="flex space-x-3">
+                <button
+                  onClick={() => viewEventFixtures(selectedFixtureEventId)}
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
+                >
+                  View Fixtures
+                </button>
+                <button
+                  onClick={() => editEventFixtures(selectedFixtureEventId)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
+                >
+                  Edit Fixtures
+                </button>
               </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-400 text-center py-8">
+                      <p>No fixtures have been generated for this event yet.</p>
+                      <p className="text-sm mt-2">Click the 'Generate Fixtures' button to create fixtures based on registered teams.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-800 rounded-xl p-6 text-center">
+                  <p className="text-gray-400">
+                    Please select an event to generate or view fixtures.
+                  </p>
+                </div>
+              )
             )}
           </div>
         )}

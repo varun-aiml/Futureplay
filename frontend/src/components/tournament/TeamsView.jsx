@@ -13,6 +13,7 @@ const TeamsView = ({ tournamentId, events }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [franchises, setFranchises] = useState([]);
@@ -111,10 +112,19 @@ const TeamsView = ({ tournamentId, events }) => {
     }
   };
   
-  // Filter bookings by selected event
-  const filteredBookings = selectedEventId === 'all' 
-    ? bookings 
-    : bookings.filter(booking => booking.event === selectedEventId);
+    // Filter bookings by selected event and search term
+    const filteredBookings = bookings
+    .filter(booking => selectedEventId === 'all' || booking.event === selectedEventId)
+    .filter(booking => {
+      if (!searchTerm.trim()) return true;
+      
+      const term = searchTerm.toLowerCase().trim();
+      return (
+        booking.playerName.toLowerCase().includes(term) ||
+        booking.email.toLowerCase().includes(term) ||
+        booking.phone.toLowerCase().includes(term)
+      );
+    });
   
   // Count online and offline registrations
   const onlineCount = filteredBookings.filter(booking => 
@@ -324,6 +334,24 @@ const TeamsView = ({ tournamentId, events }) => {
                 <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
               </svg>
             </div>
+          </div>
+        </div>
+      </div>
+
+       {/* Add search bar */}
+       <div className="mb-4">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by name, email or phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 pl-10 focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
           </div>
         </div>
       </div>

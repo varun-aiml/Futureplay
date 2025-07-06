@@ -35,3 +35,9 @@ export const getTournamentFranchises = async (tournamentId) => {
   const response = await api.get(`/bookings/tournament/${tournamentId}/franchises`);
   return response;
 };
+
+// Update team event
+export const updateTeamEvent = async (bookingId, eventId) => {
+  const response = await api.put(`/bookings/${bookingId}/event`, { eventId });
+  return response;
+};

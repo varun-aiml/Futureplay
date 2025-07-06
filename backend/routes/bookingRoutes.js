@@ -7,7 +7,9 @@ const {
   updateBookingStatus,
   associateTeamWithFranchise,
   removeTeamFromFranchise,
-  getTournamentFranchises
+  getTournamentFranchises,
+  getTournamentPlayers,
+  updateTeamEvent // Add this line
 } = require('../controllers/bookingController');
 
 // Public route for creating bookings
@@ -22,5 +24,9 @@ router.put('/:bookingId', updateBookingStatus);
 router.put('/:bookingId/franchise', associateTeamWithFranchise);
 router.delete('/:bookingId/franchise', removeTeamFromFranchise);
 router.get('/tournament/:tournamentId/franchises', getTournamentFranchises);
+router.get('/tournament/:tournamentId/players', getTournamentPlayers);
+
+// Route for updating team event
+router.put('/:bookingId/event', updateTeamEvent);
 
 module.exports = router;
