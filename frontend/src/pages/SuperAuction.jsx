@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFranchise } from '../context/franchiseContext';
 import FranchiseLayout from '../components/FranchiseLayout';
+import FixturesView from '../components/franchise/FixturesView';
 import { 
   getTournamentAuctions, 
   getTodayAuctions, 
@@ -16,8 +17,8 @@ function SuperAuction() {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'today', 'upcoming', 'franchises', 'players'
-  const [auctionView, setAuctionView] = useState(true); // true for auction tabs, false for franchises/players tabs
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'today', 'upcoming', 'franchises', 'players', 'fixtures'
+  const [auctionView, setAuctionView] = useState(true); // true for auction tabs, false for franchises/players/fixtures tabs
   const [selectedAuction, setSelectedAuction] = useState(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ function SuperAuction() {
             setAuctions(response.data);
           }
         } else {
-          // Franchises/Players tabs
+          // Franchises/Players/Fixtures tabs
           if (activeTab === 'franchises') {
             response = await getTournamentFranchises(franchise.tournament);
             setFranchises(response.data);
@@ -47,6 +48,7 @@ function SuperAuction() {
             response = await getTournamentPlayers(franchise.tournament);
             setPlayers(response.data);
           }
+          // No need to fetch data for fixtures tab as it loads from localStorage
         }
 
         setLoading(false);
@@ -120,7 +122,7 @@ function SuperAuction() {
                 </button>
               </>
             ) : (
-              // Franchises/Players tabs
+              // Franchises/Players/Fixtures tabs
               <>
                 <button
                   onClick={() => setActiveTab('franchises')}
@@ -133,6 +135,12 @@ function SuperAuction() {
                   className={`${activeTab === 'players' ? 'border-red-500 text-red-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                 >
                   Players
+                </button>
+                <button
+                  onClick={() => setActiveTab('fixtures')}
+                  className={`${activeTab === 'fixtures' ? 'border-red-500 text-red-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Fixtures
                 </button>
               </>
             )}
@@ -208,7 +216,7 @@ function SuperAuction() {
                 </table>
               </div>
             )
-          ) : (
+          ) : activeTab === 'players' ? (
             // Players View
             players.length === 0 ? (
               <div className="bg-gray-800 rounded-lg p-6 text-center">
@@ -217,37 +225,40 @@ function SuperAuction() {
             ) : (
               <div className="bg-gray-800 rounded-lg overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-700">
-  <thead className="bg-gray-700">
-    <tr>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Player Name</th>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Franchise</th>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Gender</th>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">T-Shirt Size</th>
-      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-    </tr>
-  </thead>
-  <tbody className="bg-gray-800 divide-y divide-gray-700">
-    {players.map((player) => (
-      <tr key={player._id} className="hover:bg-gray-700">
-        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{player.playerName}</td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-          {player.franchise ? player.franchise.franchiseName : 'Not Assigned'}
-        </td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.phone}</td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.gender}</td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.tShirtSize}</td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${player.status === 'Confirmed' ? 'bg-green-100 text-green-800' : player.status === 'Cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-            {player.status}
-          </span>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Player Name</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Franchise</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Gender</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">T-Shirt Size</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {players.map((player) => (
+                      <tr key={player._id} className="hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{player.playerName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                          {player.franchise ? player.franchise.franchiseName : 'Not Assigned'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.phone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.gender}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.tShirtSize}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${player.status === 'Confirmed' ? 'bg-green-100 text-green-800' : player.status === 'Cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                            {player.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )
+          ) : (
+            // Fixtures View
+            <FixturesView />
           )}
         </div>
       </div>

@@ -1114,8 +1114,8 @@ const FranchiseFixturesView = ({ tournamentId, events }) => {
   // New state for auto-assigned teams
   const [autoAssignedTeams, setAutoAssignedTeams] = useState({});
 
-  // Fetch franchises and bookings
-  useEffect(() => {
+// Fetch franchises and bookings
+useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
@@ -1138,6 +1138,9 @@ const FranchiseFixturesView = ({ tournamentId, events }) => {
           const poolB = tournamentFranchises.slice(4, 8);
           setPools({ A: poolA, B: poolB });
         }
+        
+        // Load fixtures from localStorage if available
+        loadFixturesFromLocalStorage();
         
         setIsLoading(false);
       } catch (error) {
@@ -1493,7 +1496,7 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
   };
 
   // Generate all fixtures
-  const generateFixtures = () => {
+const generateFixtures = () => {
     try {
       setIsGeneratingFixtures(true);
       setFixtureError('');
@@ -1522,6 +1525,10 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
       });
       
       setShowFixtures(true);
+      
+      // Save fixtures to localStorage
+      setTimeout(() => saveFixturesToLocalStorage(), 0);
+      
       toast.success('Fixtures generated successfully!');
     } catch (error) {
       console.error('Error generating fixtures:', error);
@@ -1532,8 +1539,8 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
     }
   };
 
-  // Handle court number change
-  const handleCourtChange = (matchId, poolType, courtNumber) => {
+// Handle court number change
+const handleCourtChange = (matchId, poolType, courtNumber) => {
     setFixtures(prevFixtures => {
       const updatedFixtures = { ...prevFixtures };
       
@@ -1551,10 +1558,13 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
         );
       }
       
+      // Save changes to localStorage
+      setTimeout(() => saveFixturesToLocalStorage(), 0);
+      
       return updatedFixtures;
     });
   };
-
+  
   // Handle team assignment to event
   const handleTeamAssignment = (matchId, poolType, eventId, franchiseSide, teamId) => {
     setFixtures(prevFixtures => {
@@ -1586,6 +1596,9 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
         }
         return match;
       });
+      
+      // Save changes to localStorage
+      setTimeout(() => saveFixturesToLocalStorage(), 0);
       
       return updatedFixtures;
     });
@@ -1693,6 +1706,39 @@ const getTeamName = (teamId, matchContext = null) => {
     return team.playerName;
   };
 
+  // Save fixtures to localStorage
+  const saveFixturesToLocalStorage = () => {
+    try {
+      const fixturesData = {
+        poolA: fixtures.poolA,
+        poolB: fixtures.poolB,
+        knockout: fixtures.knockout
+      };
+      localStorage.setItem(`fixtures_${tournamentId}`, JSON.stringify(fixturesData));
+      toast.success('Fixtures saved successfully!');
+    } catch (error) {
+      console.error('Error saving fixtures to localStorage:', error);
+      toast.error('Failed to save fixtures');
+    }
+  };
+
+  // Load fixtures from localStorage
+  const loadFixturesFromLocalStorage = () => {
+    try {
+      const savedFixtures = localStorage.getItem(`fixtures_${tournamentId}`);
+      if (savedFixtures) {
+        const parsedFixtures = JSON.parse(savedFixtures);
+        setFixtures(parsedFixtures);
+        setShowFixtures(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error loading fixtures from localStorage:', error);
+      return false;
+    }
+  };
+
 
   return (
     <div className="mb-6">
@@ -1764,26 +1810,35 @@ const getTeamName = (teamId, matchContext = null) => {
             )}
           </div>
           
-          {/* Fixtures Display Section */}
-          {showFixtures && (
-            <div className="bg-gray-800 p-4 rounded-md mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-white">Fixtures</h3>
-                
-                <div className="flex items-center">
-                  <label htmlFor="poolSelect" className="mr-2 text-white">View Pool:</label>
-                  <select
-                    id="poolSelect"
-                    value={selectedPool}
-                    onChange={(e) => setSelectedPool(e.target.value)}
-                    className="bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    <option value="A">Pool A</option>
-                    <option value="B">Pool B</option>
-                    <option value="knockout">Knockout Stage</option>
-                  </select>
-                </div>
-              </div>
+{/* Fixtures Display Section */}
+{showFixtures && (
+  <div className="bg-gray-800 p-4 rounded-md mb-6">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-lg font-medium text-white">Fixtures</h3>
+      
+      <div className="flex items-center space-x-3">
+        <button
+          onClick={saveFixturesToLocalStorage}
+          className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors"
+        >
+          Save Changes
+        </button>
+        
+        <div className="flex items-center">
+          <label htmlFor="poolSelect" className="mr-2 text-white">View Pool:</label>
+          <select
+            id="poolSelect"
+            value={selectedPool}
+            onChange={(e) => setSelectedPool(e.target.value)}
+            className="bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            <option value="A">Pool A</option>
+            <option value="B">Pool B</option>
+            <option value="knockout">Knockout Stage</option>
+          </select>
+        </div>
+      </div>
+    </div>
               
               <div className="space-y-4">
                 {selectedPool === 'A' && fixtures.poolA.map(match => (
