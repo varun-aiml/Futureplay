@@ -85,7 +85,7 @@ const FixturesView = () => {
     setExpandedMatch(expandedMatch === matchId ? null : matchId);
   };
 
-  // Get team name by ID
+// Get team name by ID
 const getTeamName = (teamId, eventMatch) => {
     if (!teamId) return 'Not assigned';
     
@@ -101,9 +101,11 @@ const getTeamName = (teamId, eventMatch) => {
     
     // Check if this is a 30+/35+ men's event
     const is30Or35MensEvent = (eventId) => {
-      const event = events.find(e => e._id === eventId);
-      return event && event.name.toLowerCase().includes('30+') && event.name.toLowerCase().includes('35+');
-    };
+        const event = events.find(e => e._id === eventId);
+        return event && 
+               event.name.toLowerCase().includes('30+') && 
+               event.name.toLowerCase().includes('35+');
+      }
     
     // Check if this is a 40+ men's event
     const is40MensEvent = (eventId) => {
@@ -132,14 +134,13 @@ const getTeamName = (teamId, eventMatch) => {
         
         // Get all 30+ and 35+ teams from this franchise
         const franchiseTeamsIn30And35Events = bookings.filter(booking => 
-          booking.franchise === franchiseId && 
-          booking._id !== teamId &&
-          booking.event && events.some(e => 
-            e._id === booking.event && 
-            (e.name.toLowerCase().includes("30+ men's") || 
-             e.name.toLowerCase().includes("35+ men's"))
-          )
-        );
+            booking.franchise === franchiseId && 
+            booking._id !== teamId &&
+            booking.event && events.some(e => 
+              e._id === booking.event && 
+              (e.name.toLowerCase().includes("30+ men's") || e.name.toLowerCase().includes("35+ men's"))
+            )
+          );
         
         // If there's another team from the same franchise in these events
         if (franchiseTeamsIn30And35Events.length > 0) {
