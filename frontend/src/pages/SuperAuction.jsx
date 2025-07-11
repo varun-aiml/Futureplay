@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useFranchise } from '../context/franchiseContext';
 import FranchiseLayout from '../components/FranchiseLayout';
 import FixturesView from '../components/franchise/FixturesView';
+import ResultsView from '../components/tournament/ResultsView';
 import { 
   getTournamentAuctions, 
   getTodayAuctions, 
@@ -9,6 +10,7 @@ import {
   getTournamentFranchises,
   getTournamentPlayers 
 } from '../services/franchiseAuctionService';
+import { getTournamentById } from '../services/tournamentService';
 
 function SuperAuction() {
   const { franchise } = useFranchise();
@@ -17,15 +19,28 @@ function SuperAuction() {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'today', 'upcoming', 'franchises', 'players', 'fixtures'
-  const [auctionView, setAuctionView] = useState(true); // true for auction tabs, false for franchises/players/fixtures tabs
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'today', 'upcoming', 'franchises', 'players', 'fixtures', 'results'
+  const [auctionView, setAuctionView] = useState(true); // true for auction tabs, false for franchises/players/fixtures/results tabs
   const [selectedAuction, setSelectedAuction] = useState(null);
+  const [events, setEvents] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         let response;
+
+        // Fetch tournament events for Results view
+        if (!auctionView && (activeTab === 'fixtures' || activeTab === 'results')) {
+          try {
+            const tournamentResponse = await getTournamentById(franchise.tournament);
+            if (tournamentResponse.data && tournamentResponse.data.data) {
+              setEvents(tournamentResponse.data.data.events || []);
+            }
+          } catch (err) {
+            console.error('Error fetching tournament events:', err);
+          }
+        }
 
         if (auctionView) {
           // Auction tabs
@@ -40,7 +55,7 @@ function SuperAuction() {
             setAuctions(response.data);
           }
         } else {
-          // Franchises/Players/Fixtures tabs
+          // Franchises/Players/Fixtures/Results tabs
           if (activeTab === 'franchises') {
             response = await getTournamentFranchises(franchise.tournament);
             setFranchises(response.data);
@@ -49,6 +64,7 @@ function SuperAuction() {
             setPlayers(response.data);
           }
           // No need to fetch data for fixtures tab as it loads from localStorage
+          // No need to fetch data for results tab as ResultsView handles its own data fetching
         }
 
         setLoading(false);
@@ -122,7 +138,7 @@ function SuperAuction() {
                 </button>
               </>
             ) : (
-              // Franchises/Players/Fixtures tabs
+              // Franchises/Players/Fixtures/Results tabs
               <>
                 <button
                   onClick={() => setActiveTab('franchises')}
@@ -141,6 +157,12 @@ function SuperAuction() {
                   className={`${activeTab === 'fixtures' ? 'border-red-500 text-red-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                 >
                   Fixtures
+                </button>
+                <button
+                  onClick={() => setActiveTab('results')}
+                  className={`${activeTab === 'results' ? 'border-red-500 text-red-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Results
                 </button>
               </>
             )}
@@ -256,6 +278,9 @@ function SuperAuction() {
                 </table>
               </div>
             )
+          ) : activeTab === 'results' ? (
+            // Results View
+            <ResultsView tournamentId={franchise.tournament} events={events} />
           ) : (
             // Fixtures View
             <FixturesView />
