@@ -892,7 +892,7 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
       // Final
       {
         id: 'final',
-        round: 'Final without declaring',
+        round: 'Final',
         franchise1: { franchiseName: 'Winner SF1' }, // Placeholder
         franchise2: { franchiseName: 'Winner SF2' }, // Placeholder
         date: new Date().toISOString().split('T')[0],

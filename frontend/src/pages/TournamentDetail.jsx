@@ -17,6 +17,7 @@ import FixtureModal from "../components/tournament/FixtureModal";
 import TeamsView from "../components/tournament/TeamsView";
 import FranchiseOwnersView from "../components/tournament/FranchiseOwnersView";
 import FranchiseFixturesView from '../components/tournament/FranchiseFixturesView';
+import ResultsView from '../components/tournament/ResultsView';
 
 const TournamentDetail = () => {
   const { id } = useParams();
@@ -1183,6 +1184,7 @@ const editEventFixtures = (eventId) => {
                 )}
               </div>
             </div>
+            
 
             {/* Franchise Fixtures View */}
             {showFranchiseFixtures ? (
@@ -1272,6 +1274,10 @@ const editEventFixtures = (eventId) => {
               )
             )}
           </div>
+        )}
+        {/* Results Tab Content */}
+        {activeTab === "results" && (
+          <ResultsView tournamentId={id} events={tournament.events || []} />
         )}
 
         {/* Fixture Editor Modal */}
