@@ -216,7 +216,14 @@ const CreateTournament = () => {
       }
       
       // Append empty events array since events will be added later from the events tab
-      formDataObj.append('events', JSON.stringify([]));
+      if (isEditMode) {
+        // Don't send events array at all during update to preserve existing events
+        // Or explicitly include the current events:
+        // formDataObj.append('events', JSON.stringify(formData.events));
+      } else {
+        // For new tournaments, send empty events array
+        formDataObj.append('events', JSON.stringify([]));
+      }
       
       let response;
       if (isEditMode) {

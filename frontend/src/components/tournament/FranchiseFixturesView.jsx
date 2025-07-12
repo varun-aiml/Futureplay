@@ -907,7 +907,7 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
   };
 
   // Generate all fixtures
-const generateFixtures = () => {
+  const generateFixtures = () => {
     try {
       setIsGeneratingFixtures(true);
       setFixtureError('');
@@ -916,6 +916,13 @@ const generateFixtures = () => {
       if (franchises.length < 8) {
         throw new Error('Need at least 8 franchises to generate fixtures');
       }
+      
+      // Store existing fixtures to preserve scores
+      const existingFixtures = {
+        poolA: [...fixtures.poolA],
+        poolB: [...fixtures.poolB],
+        knockout: [...fixtures.knockout]
+      };
       
       // Generate pool fixtures
       const poolAFixtures = generatePoolFixtures(pools.A);
@@ -928,11 +935,50 @@ const generateFixtures = () => {
       // Generate knockout fixtures
       const knockoutFixtures = generateKnockoutFixtures(poolAWinners, poolBWinners);
       
-      // Set fixtures
+      // Preserve scores from existing fixtures
+      const preserveScores = (newFixtures, existingFixturesArray, poolType) => {
+        return newFixtures.map(newMatch => {
+          // Find matching match in existing fixtures
+          const existingMatch = existingFixturesArray.find(m => m.id === newMatch.id);
+          
+          if (!existingMatch) return newMatch;
+          
+          // Copy over event matches with preserved scores
+          const updatedEventMatches = newMatch.eventMatches.map(newEventMatch => {
+            // Find matching event match in existing match
+            const existingEventMatch = existingMatch.eventMatches.find(
+              em => em.eventId === newEventMatch.eventId
+            );
+            
+            if (existingEventMatch && existingEventMatch.completed) {
+              // Preserve score, completion status, and winner
+              return {
+                ...newEventMatch,
+                score: existingEventMatch.score,
+                completed: existingEventMatch.completed,
+                winner: existingEventMatch.winner,
+                team1: existingEventMatch.team1,
+                team2: existingEventMatch.team2
+              };
+            }
+            
+            return newEventMatch;
+          });
+          
+          return { ...newMatch, eventMatches: updatedEventMatches };
+        });
+      };
+      
+      // Apply score preservation
+      const updatedPoolAFixtures = preserveScores(poolAFixtures, existingFixtures.poolA, 'A');
+      const updatedPoolBFixtures = preserveScores(poolBFixtures, existingFixtures.poolB, 'B');
+      const updatedKnockoutFixtures = preserveScores(knockoutFixtures, existingFixtures.knockout, 'knockout');
+      
+      // Set fixtures with preserved scores
       setFixtures({
-        poolA: poolAFixtures,
-        poolB: poolBFixtures,
-        knockout: knockoutFixtures
+        poolA: updatedPoolAFixtures,
+        poolB: updatedPoolBFixtures,
+        knockout: updatedKnockoutFixtures
       });
       
       setShowFixtures(true);
