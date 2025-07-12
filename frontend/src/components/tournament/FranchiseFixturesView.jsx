@@ -4,7 +4,7 @@ import { getTournamentBookings, updateTeamEvent } from '../../services/bookingSe
 import { toast } from 'react-toastify';
 import ScoreModal from './ScoreModal';
 
-const FranchiseFixturesView = ({ tournamentId, events }) => {
+const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   const [franchises, setFranchises] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
