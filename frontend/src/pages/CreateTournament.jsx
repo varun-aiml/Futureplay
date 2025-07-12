@@ -35,7 +35,7 @@ const LocationMarker = ({
       setSelectedLocation([lat, lng]);
 
       // Reverse geocode using Nominatim
-      fetch(`http://localhost:5000/api/reverse-geocode?lat=${lat}&lon=${lng}`)
+      fetch(`https://sportstek.onrender.com/api/reverse-geocode?lat=${lat}&lon=${lng}`)
         .then((res) => res.json())
         .then((data) => {
           const address = data.display_name || "Unknown location";
