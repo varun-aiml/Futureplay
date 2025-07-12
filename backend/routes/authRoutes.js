@@ -31,9 +31,9 @@ router.get(
     
     // Redirect based on profile completion status
     if (!req.user.profileComplete) {
-      res.redirect(`http://localhost:5173/complete-profile?data=${encodeURIComponent(userData)}`);
+      res.redirect(`https://sportstek-frontend.onrender.com/complete-profile?data=${encodeURIComponent(userData)}`);
     } else {
-      res.redirect(`http://localhost:5173/organizer/home?data=${encodeURIComponent(userData)}`);
+      res.redirect(`https://sportstek-frontend.onrender.com/organizer/home?data=${encodeURIComponent(userData)}`);
     }
   }
 );
