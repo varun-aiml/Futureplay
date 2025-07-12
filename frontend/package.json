@@ -22,7 +22,7 @@
     "react-svg-pan-zoom": "^3.13.1",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.3",
-    "styled-components": "^6.1.18"
+    "styled-components": "^4.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
