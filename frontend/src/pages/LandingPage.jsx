@@ -5,6 +5,7 @@ import HeroSection from "../components/HeroSection";
 import ScrollToTop from "../components/ScrollToTop";
 import TestimonialsSection from "../components/TestinomialsSection";
 import UpcomingTournaments from "../components/UpcomingTournaments";
+import WhatsAppCommunity from "../components/WhatsAppCommunity";
 
 function LandingPage() {
   return (
@@ -16,6 +17,7 @@ function LandingPage() {
       <TestimonialsSection />
       <Footer />
       <ScrollToTop />
+      <WhatsAppCommunity />
     </div>
   );
 }

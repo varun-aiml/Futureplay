@@ -3,6 +3,7 @@ import { getAllFranchises } from '../../services/franchiseService';
 import { getTournamentBookings, updateTeamEvent } from '../../services/bookingService';
 import { toast } from 'react-toastify';
 import ScoreModal from './ScoreModal';
+import { updatePoolArrangements, getTournamentById } from '../../services/tournamentService';
 
 const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   const [franchises, setFranchises] = useState([]);
@@ -28,6 +29,8 @@ const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   const [declaredResults, setDeclaredResults] = useState({});
   const [declaredMatchIds, setDeclaredMatchIds] = useState([]);
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [selectedFranchiseForPool, setSelectedFranchiseForPool] = useState('');
+  const [isSavingPools, setIsSavingPools] = useState(false);
   const [declaredResultsByPool, setDeclaredResultsByPool] = useState({
     A: {},
     B: {},
@@ -43,42 +46,158 @@ const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   });
 // Fetch franchises and bookings
 useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Get all franchises
-        const franchisesResponse = await getAllFranchises();
-        // Filter franchises for this tournament
-        const tournamentFranchises = (franchisesResponse.franchises || []).filter(
-          franchise => franchise.tournament === tournamentId
-        );
-        setFranchises(tournamentFranchises);
-        
-        // Get all bookings for this tournament
-        const bookingsResponse = await getTournamentBookings(tournamentId);
-        setBookings(bookingsResponse.data.data);
-        
-        // Automatically distribute franchises into pools if we have 8 franchises
-        if (tournamentFranchises.length >= 8) {
-          const poolA = tournamentFranchises.slice(0, 4);
-          const poolB = tournamentFranchises.slice(4, 8);
-          setPools({ A: poolA, B: poolB });
-        }
-        
-        // Load fixtures from localStorage if available
-        loadFixturesFromLocalStorage();
-        
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error.response?.data?.message || 'Failed to fetch data');
-        setIsLoading(false);
-      }
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get all franchises
+      const franchisesResponse = await getAllFranchises();
+      // Filter franchises for this tournament
+      const tournamentFranchises = (franchisesResponse.franchises || []).filter(
+        franchise => franchise.tournament === tournamentId
+      );
+      
+      // Set franchises first
+      setFranchises(tournamentFranchises);
+      
+      // Get all bookings for this tournament
+      const bookingsResponse = await getTournamentBookings(tournamentId);
+      setBookings(bookingsResponse.data.data);
+      
+      // Now load pools from database AFTER franchises are set
+      setTimeout(() => loadPoolsFromDatabase(tournamentFranchises), 0);
+      
+      // If no pools were loaded and we have enough franchises, distribute them
+      // This will be handled in the loadPoolsFromDatabase function
+      
+      // Load fixtures from localStorage
+      loadFixturesFromLocalStorage();
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError(error.response?.data?.message || 'Failed to fetch data');
+      setIsLoading(false);
+    }
+  };
+  
+  fetchData();
+}, [tournamentId]);
+
+// Add this function to save pool arrangements to the database
+const savePoolsToDatabase = async () => {
+  try {
+    setIsSavingPools(true);
+    
+    // Validate that events exist
+    if (!events || events.length === 0) {
+      throw new Error('No events found for this tournament');
+    }
+    
+    // Get the first event ID (assuming we're using the first event for pools)
+    const eventId = events[0]._id;
+    
+    // Validate that the event has an ID
+    if (!eventId) {
+      throw new Error('Invalid event ID');
+    }
+    
+    // Validate that pools have franchises
+    if (pools.A.length === 0 || pools.B.length === 0) {
+      throw new Error('Both pools must have franchises assigned');
+    }
+    
+    // Prepare pools data with only the IDs
+    const poolsData = {
+      A: pools.A.map(franchise => franchise._id),
+      B: pools.B.map(franchise => franchise._id)
     };
     
-    fetchData();
-  }, [tournamentId]);
+    // Call the API to update pool arrangements
+    const response = await updatePoolArrangements(tournamentId, eventId, poolsData);
+    
+    if (response.data.success) {
+      toast.success('Pool arrangements saved to database successfully!');
+    } else {
+      throw new Error(response.data.message || 'Failed to save pool arrangements');
+    }
+  } catch (error) {
+    console.error('Error saving pool arrangements:', error);
+    toast.error(error.message || 'Failed to save pool arrangements');
+  } finally {
+    setIsSavingPools(false);
+  }
+};
+    
+// Add this function to load pool arrangements from the database
+// Update the loadPoolsFromDatabase function
+const loadPoolsFromDatabase = async (franchisesList = null) => {
+  try {
+    // Get the tournament data
+    const response = await getTournamentById(tournamentId);
+    const tournament = response.data.data;
+    
+    // Find the first event with fixtures
+    const event = tournament.events.find(event => 
+      event.fixtures && event.fixtures.length > 0 && event.fixtures[0].pools
+    );
+    
+    if (event && event.fixtures[0].pools) {
+      // Get the pool arrangements
+      const dbPools = event.fixtures[0].pools;
+      
+      // Use the passed franchises list or fall back to state
+      const franchisesToUse = franchisesList || franchises;
+      
+      // Find the franchise objects for each pool - FIX THE COMPARISON HERE
+      const poolA = dbPools.A.map(franchiseId => {
+        // Convert ObjectId to string for comparison
+        const franchiseIdStr = typeof franchiseId === 'object' ? franchiseId._id : franchiseId;
+        return franchisesToUse.find(f => f._id === franchiseIdStr) || null;
+      }).filter(Boolean);
+      
+      const poolB = dbPools.B.map(franchiseId => {
+        // Convert ObjectId to string for comparison
+        const franchiseIdStr = typeof franchiseId === 'object' ? franchiseId._id : franchiseId;
+        return franchisesToUse.find(f => f._id === franchiseIdStr) || null;
+      }).filter(Boolean);
+      
+      // Update the pools state
+      if (poolA.length > 0 || poolB.length > 0) {
+        setPools({ A: poolA, B: poolB });
+        return true; // Indicate pools were loaded
+      }
+    }
+    return false; // Indicate no pools were loaded
+  } catch (error) {
+    console.error('Error loading pool arrangements:', error);
+    // Fallback to localStorage if database load fails
+    loadFixturesFromLocalStorage();
+    return false;
+  }
+};
+
+  // Add this function after the other handler functions
+  const handleManualPoolAssignment = (franchiseId, targetPool) => {
+    // Find the franchise object
+    const franchise = franchises.find(f => f._id === franchiseId);
+    if (!franchise) return;
+    
+    // Remove the franchise from any pool it might be in
+    const updatedPools = {
+      A: pools.A.filter(f => f._id !== franchiseId),
+      B: pools.B.filter(f => f._id !== franchiseId)
+    };
+    
+    // Add the franchise to the target pool
+    updatedPools[targetPool] = [...updatedPools[targetPool], franchise];
+    
+    // Update the pools state
+    setPools(updatedPools);
+    
+    // Reset the selected franchise
+    setSelectedFranchiseForPool('');
+  };
 
   // Get event name by ID
   const getEventName = (eventId) => {
@@ -1354,48 +1473,103 @@ const loadFixturesFromLocalStorage = () => {
           {/* Pool Management Section */}
           <div className="bg-gray-800 p-4 rounded-md mb-6">
             <h3 className="text-lg font-medium text-white mb-3">Pool Management</h3>
+
+            {/* Manual Pool Assignment */}
+  <div className="mb-4 p-3 bg-gray-700 rounded-md">
+    <h4 className="text-md font-medium text-white mb-2">Manual Pool Assignment</h4>
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        value={selectedFranchiseForPool}
+        onChange={(e) => setSelectedFranchiseForPool(e.target.value)}
+        className="bg-gray-800 text-white border border-gray-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+      >
+        <option value="">Select Franchise</option>
+        {franchises.map(franchise => (
+          <option key={franchise._id} value={franchise._id}>
+            {franchise.franchiseName}
+          </option>
+        ))}
+      </select>
+      
+      <button
+        onClick={() => handleManualPoolAssignment(selectedFranchiseForPool, 'A')}
+        disabled={!selectedFranchiseForPool}
+        className={`px-3 py-2 rounded-md ${!selectedFranchiseForPool ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium transition-colors`}
+      >
+        Assign to Pool A
+      </button>
+      
+      <button
+        onClick={() => handleManualPoolAssignment(selectedFranchiseForPool, 'B')}
+        disabled={!selectedFranchiseForPool}
+        className={`px-3 py-2 rounded-md ${!selectedFranchiseForPool ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white font-medium transition-colors`}
+      >
+        Assign to Pool B
+      </button>
+    </div>
+  </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <h4 className="text-md font-medium text-white mb-2">Pool A</h4>
-<ul className="bg-gray-700 rounded-md p-2">
-  {pools.A.length > 0 ? (
-    pools.A.map(franchise => (
-      <li key={franchise._id} className="p-2 border-b border-gray-600 last:border-0">
-        <span className="text-yellow-300 font-medium">{franchise.franchiseName}</span>
-      </li>
-    ))
-  ) : (
-    <li className="p-2 text-gray-400">No franchises assigned</li>
-  )}
-</ul>
-              </div>
-              
-              <div>
-              <h4 className="text-md font-medium text-white mb-2">Pool B</h4>
-<ul className="bg-gray-700 rounded-md p-2">
-  {pools.B.length > 0 ? (
-    pools.B.map(franchise => (
-      <li key={franchise._id} className="p-2 border-b border-gray-600 last:border-0">
-        <span className="text-yellow-300 font-medium">{franchise.franchiseName}</span>
-      </li>
-    ))
-  ) : (
-    <li className="p-2 text-gray-400">No franchises assigned</li>
-  )}
-</ul>
-              </div>
-            </div>
-            
-            <div className="flex justify-end">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <div>
+      <h4 className="text-md font-medium text-white mb-2">Pool A</h4>
+      <ul className="bg-gray-700 rounded-md p-2">
+        {pools.A.length > 0 ? (
+          pools.A.map(franchise => (
+            <li key={franchise._id} className="p-2 border-b border-gray-600 last:border-0 flex justify-between items-center">
+              <span className="text-yellow-300 font-medium">{franchise.franchiseName}</span>
               <button
-                onClick={generateFixtures}
-                disabled={isGeneratingFixtures || pools.A.length < 4 || pools.B.length < 4}
-                className={`px-4 py-2 rounded-md ${isGeneratingFixtures || pools.A.length < 4 || pools.B.length < 4 ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white font-medium transition-colors`}
+                onClick={() => handleManualPoolAssignment(franchise._id, 'B')}
+                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
               >
-                {isGeneratingFixtures ? 'Generating...' : 'Generate Fixtures'}
+                Move to Pool B
               </button>
-            </div>
+            </li>
+          ))
+        ) : (
+          <li className="p-2 text-gray-400">No franchises assigned</li>
+        )}
+      </ul>
+    </div>
+    
+    <div>
+      <h4 className="text-md font-medium text-white mb-2">Pool B</h4>
+      <ul className="bg-gray-700 rounded-md p-2">
+        {pools.B.length > 0 ? (
+          pools.B.map(franchise => (
+            <li key={franchise._id} className="p-2 border-b border-gray-600 last:border-0 flex justify-between items-center">
+              <span className="text-yellow-300 font-medium">{franchise.franchiseName}</span>
+              <button
+                onClick={() => handleManualPoolAssignment(franchise._id, 'A')}
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+              >
+                Move to Pool A
+              </button>
+            </li>
+          ))
+        ) : (
+          <li className="p-2 text-gray-400">No franchises assigned</li>
+        )}
+      </ul>
+    </div>
+  </div>
+            
+  <div className="flex justify-end space-x-3">
+          <button
+            onClick={savePoolsToDatabase}
+            disabled={isSavingPools || pools.A.length === 0 || pools.B.length === 0}
+            className={`px-4 py-2 rounded-md ${isSavingPools || pools.A.length === 0 || pools.B.length === 0 ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium transition-colors`}
+          >
+            {isSavingPools ? 'Saving...' : 'Fix Pools'}
+          </button>
+          
+          <button
+            onClick={generateFixtures}
+            disabled={isGeneratingFixtures || pools.A.length < 4 || pools.B.length < 4}
+            className={`px-4 py-2 rounded-md ${isGeneratingFixtures || pools.A.length < 4 || pools.B.length < 4 ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white font-medium transition-colors`}
+          >
+            {isGeneratingFixtures ? 'Generating...' : 'Generate Fixtures'}
+          </button>
+        </div>
             
             {fixtureError && (
               <div className="mt-3 bg-red-900 text-white p-3 rounded-md">

@@ -33,8 +33,15 @@ router.get(
     if (!req.user.profileComplete) {
       res.redirect(`https://sportstek-frontend.onrender.com/complete-profile?data=${encodeURIComponent(userData)}`);
     } else {
+      // http://localhost:5173/
+      // https://sportstek-frontend.onrender.com/
       res.redirect(`https://sportstek-frontend.onrender.com/organizer/home?data=${encodeURIComponent(userData)}`);
     }
+    // if (!req.user.profileComplete) {
+    //   res.redirect(`${process.env.FRONTEND_URL}/complete-profile?data=${encodeURIComponent(userData)}`);
+    // } else {
+    //   res.redirect(`${process.env.LOCAL_FRONTEND_URL}/organizer/home?data=${encodeURIComponent(userData)}`);
+    // }
   }
 );
 

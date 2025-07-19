@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/authContext";
-import { getAllFranchises, registerFranchise } from "../services/franchiseService";
+import { getAllFranchises, registerFranchise, updateFranchiseLogo } from "../services/franchiseService";
 import { getAllTournaments } from "../services/tournamentService";
 import OrganizerLayout from "../components/OrganizerLayout";
 import { toast } from "react-toastify";
@@ -36,6 +36,8 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
   const [tournaments, setTournaments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
 
   // Fetch available tournaments
   useEffect(() => {
@@ -64,6 +66,33 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
     });
   };
 
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please upload a valid image file (JPEG, PNG, or GIF)');
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setLogoFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -75,7 +104,13 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      await registerFranchise(formData);
+      // Add logo to form data if selected
+      const dataToSubmit = {
+        ...formData,
+        logo: logoFile
+      };
+
+      await registerFranchise(dataToSubmit);
       toast.success("Franchise added successfully!");
       onSuccess(); // Refresh franchises list
       onClose(); // Close modal
@@ -88,6 +123,8 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
         whatsappNumber: "",
         tournament: "",
       });
+      setLogoFile(null);
+      setLogoPreview(null);
     } catch (error) {
       console.error("Registration error:", error);
       toast.error(
@@ -249,6 +286,30 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
             )}
           </div>
 
+          <div>
+            <label htmlFor="logo" className="block text-sm font-medium text-gray-300 mb-1">
+              Franchise Logo
+            </label>
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <input
+                  type="file"
+                  id="logo"
+                  name="logo"
+                  onChange={handleLogoChange}
+                  accept="image/jpeg,image/png,image/gif"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-white file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-700"
+                />
+                <p className="mt-1 text-xs text-gray-400">Max size: 5MB. Formats: JPG, PNG, GIF</p>
+              </div>
+              {logoPreview && (
+                <div className="h-16 w-16 rounded-md overflow-hidden border border-gray-600">
+                  <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="pt-4">
             <button
               type="submit"
@@ -315,10 +376,183 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
   );
 };
 
+// Logo Upload Modal Component
+const LogoUploadModal = ({ isOpen, onClose, franchiseId, onSuccess }) => {
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please upload a valid image file (JPEG, PNG, or GIF)');
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setLogoFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!logoFile) {
+      toast.error("Please select a logo image");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateFranchiseLogo(franchiseId, logoFile);
+      toast.success("Logo updated successfully!");
+      onSuccess(); // Refresh franchises list
+      onClose(); // Close modal
+      // Reset form
+      setLogoFile(null);
+      setLogoPreview(null);
+    } catch (error) {
+      console.error("Logo update error:", error);
+      toast.error(
+        error.response?.data?.message || "Logo update failed. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-md w-full border border-gray-700 animate-slideIn">
+        <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+          <h2 className="text-2xl font-bold text-white flex items-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6 mr-2 text-red-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            UPDATE FRANCHISE LOGO
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors hover:bg-red-600 hover:bg-opacity-20 p-2 rounded-full"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="logo-upload" className="block text-sm font-medium text-gray-300 mb-1">
+              Franchise Logo <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-full">
+                <input
+                  type="file"
+                  id="logo-upload"
+                  name="logo"
+                  onChange={handleLogoChange}
+                  accept="image/jpeg,image/png,image/gif"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-white file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-700"
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-400">Max size: 5MB. Formats: JPG, PNG, GIF</p>
+              </div>
+              {logoPreview && (
+                <div className="h-32 w-32 rounded-md overflow-hidden border border-gray-600">
+                  <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={isSubmitting || !logoFile}
+              className={`w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center ${(isSubmitting || !logoFile) ? "opacity-70 cursor-not-allowed" : ""}`}
+            >
+              {isSubmitting ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Uploading...
+                </>
+              ) : (
+                "Upload Logo"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 function OrganizerHome() {
   const { user, loginUser } = useAuth();
   const [chartHeight, setChartHeight] = useState(300);
   const [showAddFranchiseModal, setShowAddFranchiseModal] = useState(false);
+  const [showLogoUploadModal, setShowLogoUploadModal] = useState(false);
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Dummy data for tournaments
   const tournaments = [
@@ -456,7 +690,8 @@ function OrganizerHome() {
         name: franchise.franchiseName,
         owner: franchise.ownerName,
         location: franchise.whatsappNumber, // Using whatsappNumber as location
-        status: 'Active' // Default status since it doesn't exist in the model
+        status: 'Active', // Default status since it doesn't exist in the model
+        logoUrl: franchise.logoUrl // Add logoUrl to the transformed data
       }));
       setFranchises(transformedFranchises);
     } catch (error) {
@@ -464,6 +699,31 @@ function OrganizerHome() {
       toast.error("Failed to load franchises");
     } finally {
       setLoadingFranchises(false);
+    }
+  };
+
+  // Handle logo upload button click
+  const handleUploadLogo = (franchiseId) => {
+    setSelectedFranchiseId(franchiseId);
+    setShowLogoUploadModal(true);
+  };
+
+  const handleLogoUploadSubmit = async (logoFile) => {
+    if (!selectedFranchiseId || !logoFile) return;
+    
+    setUploadingLogo(true);
+    try {
+      await updateFranchiseLogo(selectedFranchiseId, logoFile);
+      toast.success("Logo updated successfully!");
+      fetchFranchises(); // Refresh franchises list
+      setShowLogoUploadModal(false);
+    } catch (error) {
+      console.error("Logo update error:", error);
+      toast.error(
+        error.response?.data?.message || "Logo update failed. Please try again."
+      );
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -760,6 +1020,9 @@ function OrganizerHome() {
                 <thead>
                   <tr className="bg-gray-700">
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Logo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -779,9 +1042,22 @@ function OrganizerHome() {
                 <tbody className="divide-y divide-gray-700">
                   {franchises.map((franchise) => (
                     <tr
-                    key={franchise.id} // Changed from _id to id
+                    key={franchise.id}
                     className="hover:bg-gray-700 transition-colors"
                   >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {franchise.logoUrl ? (
+                        <img 
+                          src={franchise.logoUrl} 
+                          alt={`${franchise.name} logo`} 
+                          className="h-10 w-10 rounded-full object-cover border border-gray-600"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-bold">
+                          {franchise.name.charAt(0)}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       {franchise.name}
                     </td>
@@ -835,6 +1111,26 @@ function OrganizerHome() {
                                 strokeLinejoin="round"
                                 strokeWidth={2}
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => handleUploadLogo(franchise.id)}
+                            className="text-green-400 hover:text-green-300 transition-colors"
+                            title="Upload Logo"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                               />
                             </svg>
                           </button>
@@ -1138,12 +1434,24 @@ function OrganizerHome() {
         </div>
       </div>
 
-      {/* Add Franchise Modal */}
-      <AddFranchiseModal 
-        isOpen={showAddFranchiseModal} 
-        onClose={() => setShowAddFranchiseModal(false)} 
-        onSuccess={fetchFranchises}
-      />
+{/* Add Franchise Modal */}
+{showAddFranchiseModal && (
+  <AddFranchiseModal
+    isOpen={showAddFranchiseModal}
+    onClose={() => setShowAddFranchiseModal(false)}
+    onSuccess={fetchFranchises}
+  />
+)}
+
+{/* Logo Upload Modal */}
+{showLogoUploadModal && (
+  <LogoUploadModal
+    isOpen={showLogoUploadModal}
+    onClose={() => setShowLogoUploadModal(false)}
+    franchiseId={selectedFranchiseId}
+    onSuccess={fetchFranchises}
+  />
+)}
     </OrganizerLayout>
   );
 }

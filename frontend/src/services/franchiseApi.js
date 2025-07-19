@@ -1,6 +1,9 @@
 import axios from 'axios';
 
+// http://localhost:5000/api
+// const API_URL = 'https://sportstek.onrender.com/api';
 const API_URL = 'https://sportstek.onrender.com/api';
+
 
 const franchiseApi = axios.create({
   baseURL: API_URL

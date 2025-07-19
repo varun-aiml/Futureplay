@@ -7,12 +7,14 @@ function UpcomingTournaments() {
   const [activeTab, setActiveTab] = useState("upcoming");
   const [currentUpcomingIndex, setCurrentUpcomingIndex] = useState(0);
   const [currentCompletedIndex, setCurrentCompletedIndex] = useState(0);
+  const [currentActiveIndex, setCurrentActiveIndex] = useState(0);
   const [tournaments, setTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   
   const upcomingCarouselRef = useRef(null);
   const completedCarouselRef = useRef(null);
+  const activeCarouselRef = useRef(null);
   const sectionRef = useRef(null);
 
   // Fetch tournaments from API
@@ -40,6 +42,10 @@ function UpcomingTournaments() {
   
   const completedTournaments = tournaments.filter(tournament => 
     tournament.status === 'Completed'
+  );
+
+  const activeTournaments = tournaments.filter(tournament => 
+    tournament.status === 'Active'
   );
 
   // Adjust section height to match viewport
@@ -82,6 +88,19 @@ function UpcomingTournaments() {
     return () => clearInterval(interval);
   }, [currentCompletedIndex, activeTab, completedTournaments]);
 
+  // Auto scroll functionality for active tournaments
+  useEffect(() => {
+    if (activeTournaments.length === 0) return;
+    
+    const interval = setInterval(() => {
+      if (activeTab === "active") {
+        nextActiveSlide();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentActiveIndex, activeTab, activeTournaments]);
+
   const nextUpcomingSlide = () => {
     if (upcomingTournaments.length <= 1) return;
     
@@ -100,7 +119,6 @@ function UpcomingTournaments() {
     }
   };
 
-  // ... other navigation functions remain the same
   const prevUpcomingSlide = () => {
     if (upcomingTournaments.length <= 1) return;
     
@@ -157,6 +175,43 @@ function UpcomingTournaments() {
     }
   };
 
+  const nextActiveSlide = () => {
+    if (activeTournaments.length <= 1) return;
+    
+    setCurrentActiveIndex((prevIndex) =>
+      prevIndex === activeTournaments.length - 1 ? 0 : prevIndex + 1
+    );
+
+    if (activeCarouselRef.current) {
+      const scrollAmount = activeCarouselRef.current.offsetWidth;
+      activeCarouselRef.current.scrollTo({
+        left:
+          ((currentActiveIndex + 1) % activeTournaments.length) *
+          scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const prevActiveSlide = () => {
+    if (activeTournaments.length <= 1) return;
+    
+    setCurrentActiveIndex((prevIndex) =>
+      prevIndex === 0 ? activeTournaments.length - 1 : prevIndex - 1
+    );
+
+    if (activeCarouselRef.current) {
+      const scrollAmount = activeCarouselRef.current.offsetWidth;
+      activeCarouselRef.current.scrollTo({
+        left:
+          (currentActiveIndex === 0
+            ? activeTournaments.length - 1
+            : currentActiveIndex - 1) * scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
   // Format date helper function
   const formatDate = (dateString) => {
     if (!dateString) return "TBA";
@@ -202,6 +257,16 @@ function UpcomingTournaments() {
               }`}
             >
               Upcoming
+            </button>
+            <button
+              onClick={() => setActiveTab("active")}
+              className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300 ${
+                activeTab === "active"
+                  ? "bg-green-600 text-white shadow-md"
+                  : "bg-transparent text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              Active
             </button>
             <button
               onClick={() => setActiveTab("completed")}
@@ -446,7 +511,221 @@ function UpcomingTournaments() {
               )}
             </div>
 
-            {/* Completed Tournaments Section - Similar changes as above */}
+            {/* Active Tournaments Section */}
+            <div
+              className={`transition-opacity duration-500 ${
+                activeTab === "active" ? "opacity-100" : "opacity-0 hidden"
+              }`}
+            >
+              {activeTournaments.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-gray-500">No active tournaments found.</p>
+                </div>
+              ) : (
+                <div className="relative max-w-5xl mx-auto">
+                  {/* Left Arrow */}
+                  {activeTournaments.length > 1 && (
+                    <button
+                      onClick={prevActiveSlide}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition-all duration-300"
+                      aria-label="Previous tournament"
+                    >
+                      <svg
+                        className="w-5 h-5 text-gray-800"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 19l-7-7 7-7"
+                        />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Carousel Container */}
+                  <div
+                    ref={activeCarouselRef}
+                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                  >
+                    {activeTournaments.map((tournament) => (
+                      <div
+                        key={tournament._id}
+                        className="min-w-full snap-center px-4"
+                      >
+                        {/* Updated card design for portrait posters */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl border border-gray-100 flex flex-col md:flex-row h-auto md:h-[450px]">
+                          <div className="relative md:w-[40%] h-[300px] md:h-auto">
+                            <img
+                              src={tournament.posterUrl || 'https://via.placeholder.com/300x450?text=No+Poster'}
+                              alt={tournament.name}
+                              className="w-full h-full object-cover object-center"
+                              onError={(e) => {
+                                e.target.src = 'https://via.placeholder.com/300x450?text=Error+Loading+Image';
+                              }}
+                            />
+                            <div className="absolute top-0 right-0 bg-green-600 text-white px-3 py-1 rounded-bl-lg font-medium text-sm">
+                              In Progress
+                            </div>
+                          </div>
+                          <div className="p-6 md:p-8 md:w-[60%] flex flex-col justify-between">
+                            <div>
+                              <h3 className="text-2xl font-bold text-gray-900 mb-4 line-clamp-2">
+                                {tournament.name}
+                              </h3>
+                              <div className="space-y-3">
+                                <div className="flex items-center">
+                                  <div className="bg-green-100 p-2 rounded-full mr-3">
+                                    <svg
+                                      className="w-5 h-5 text-green-600"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <span className="text-gray-700 text-base">
+                                    {formatDate(tournament.startDate)} - {formatDate(tournament.endDate)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <div className="bg-green-100 p-2 rounded-full mr-3">
+                                    <svg
+                                      className="w-5 h-5 text-green-600"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                                      />
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <span className="text-gray-700 text-base line-clamp-1">
+                                    {tournament.location}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-6">
+                              <div className="bg-green-50 p-4 rounded-lg mb-5 border-l-4 border-green-500">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <div className="bg-green-100 p-1.5 rounded-full mr-2">
+                                      <svg
+                                        className="w-4 h-4 text-green-600"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                      </svg>
+                                    </div>
+                                    <span className="text-sm text-gray-600">
+                                      Tournament in progress
+                                    </span>
+                                  </div>
+                                  <span className="text-sm font-semibold text-green-600">
+                                    Live matches
+                                  </span>
+                                </div>
+                              </div>
+
+                              <button className="w-full py-3 px-4 rounded-lg font-bold text-sm transition duration-300 bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg">
+                                View Live Scores
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Right Arrow */}
+                  {activeTournaments.length > 1 && (
+                    <button
+                      onClick={nextActiveSlide}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition-all duration-300"
+                      aria-label="Next tournament"
+                    >
+                      <svg
+                        className="w-5 h-5 text-gray-800"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Dots Indicator */}
+              {activeTournaments.length > 1 && (
+                <div className="flex justify-center mt-8 space-x-2">
+                  {activeTournaments.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setCurrentActiveIndex(index);
+                        if (activeCarouselRef.current) {
+                          const scrollAmount =
+                            activeCarouselRef.current.offsetWidth;
+                          activeCarouselRef.current.scrollTo({
+                            left: index * scrollAmount,
+                            behavior: "smooth",
+                          });
+                        }
+                      }}
+                      className={`transition-all duration-300 ${
+                        currentActiveIndex === index
+                          ? "bg-green-600 w-6 h-2 rounded-full"
+                          : "bg-gray-300 w-2 h-2 rounded-full hover:bg-gray-400"
+                      }`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Completed Tournaments Section */}
             <div
               className={`transition-opacity duration-500 ${
                 activeTab === "completed" ? "opacity-100" : "opacity-0 hidden"

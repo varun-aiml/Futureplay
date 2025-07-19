@@ -221,6 +221,7 @@ function SuperAuction() {
                 <table className="min-w-full divide-y divide-gray-700">
                   <thead className="bg-gray-700">
                     <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Logo</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Franchise Name</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Owner</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th>
@@ -229,6 +230,19 @@ function SuperAuction() {
                   <tbody className="bg-gray-800 divide-y divide-gray-700">
                     {franchises.map((franchise) => (
                       <tr key={franchise._id} className="hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {franchise.logoUrl ? (
+                            <img 
+                              src={franchise.logoUrl} 
+                              alt={`${franchise.franchiseName} logo`} 
+                              className="h-10 w-10 rounded-full object-cover border border-gray-600"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-bold">
+                              {franchise.franchiseName.charAt(0)}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{franchise.franchiseName}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{franchise.ownerName}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{franchise.whatsappNumber}</td>

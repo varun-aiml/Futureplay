@@ -1,5 +1,6 @@
 const Franchise = require('../models/Franchise');
 const jwt = require('jsonwebtoken');
+const cloudinary = require('../config/cloudinary');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -12,49 +13,115 @@ const generateToken = (id) => {
 // @route   POST /api/franchise/register
 // @access  Public
 exports.registerFranchise = async (req, res) => {
-    try {
-      const { franchiseName, ownerName, username, password, whatsappNumber, tournament } = req.body;
-  
-      // Check if username already exists
-      const franchiseExists = await Franchise.findOne({ username });
-      if (franchiseExists) {
-        return res.status(400).json({
-          success: false,
-          message: "Franchise with this username already exists",
-        });
-      }
-  
-      // Create new franchise
-      const franchise = await Franchise.create({
-        franchiseName,
-        ownerName,
-        username,
-        password,
-        whatsappNumber,
-        tournament
-      });
-  
-      // Generate JWT token
-      const token = generateToken(franchise._id);
-  
-      // Remove password from output
-      franchise.password = undefined;
-  
-      res.status(201).json({
-        success: true,
-        message: 'Franchise registration successful!',
-        token,
-        franchise
-      });
-    } catch (error) {
-      console.error('Franchise registration error:', error);
-      res.status(500).json({
+  try {
+    const { franchiseName, ownerName, username, password, whatsappNumber, tournament } = req.body;
+
+    // Check if username already exists
+    const franchiseExists = await Franchise.findOne({ username });
+    if (franchiseExists) {
+      return res.status(400).json({
         success: false,
-        message: 'Server error during franchise registration',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: "Franchise with this username already exists",
       });
     }
-  };
+    
+    // Handle logo upload if present
+    let logoUrl = '';
+    if (req.file) {
+      // Convert buffer to base64 string for Cloudinary
+      const fileStr = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      
+      // Upload to cloudinary
+      const result = await cloudinary.uploader.upload(fileStr, {
+        folder: 'franchise_logos',
+        width: 150,
+        crop: "scale"
+      });
+      logoUrl = result.secure_url;
+    }
+
+    // Create new franchise
+    const franchise = await Franchise.create({
+      franchiseName,
+      ownerName,
+      username,
+      password,
+      whatsappNumber,
+      tournament,
+      logoUrl
+    });
+
+    // Generate JWT token
+    const token = generateToken(franchise._id);
+
+    // Remove password from output
+    franchise.password = undefined;
+
+    res.status(201).json({
+      success: true,
+      message: 'Franchise registration successful!',
+      token,
+      franchise
+    });
+  } catch (error) {
+    console.error('Franchise registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during franchise registration',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Update franchise logo
+// @route   PUT /api/franchise/:id/logo
+// @access  Private (only for organizers)
+exports.updateFranchiseLogo = async (req, res) => {
+try {
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please upload a logo image'
+    });
+  }
+
+  // Convert buffer to base64 string for Cloudinary
+  const fileStr = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  
+  // Upload to cloudinary
+  const result = await cloudinary.uploader.upload(fileStr, {
+    folder: 'franchise_logos',
+    width: 150,
+    crop: "scale"
+  });
+
+  // Update franchise with new logo URL
+  const franchise = await Franchise.findByIdAndUpdate(
+    req.params.id,
+    { logoUrl: result.secure_url },
+    { new: true }
+  );
+
+  if (!franchise) {
+    return res.status(404).json({
+      success: false,
+      message: 'Franchise not found'
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    franchise
+  });
+} catch (error) {
+  console.error('Franchise logo update error:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Server error during franchise logo update',
+    error: process.env.NODE_ENV === 'development' ? error.message : undefined
+  });
+}
+};
 
 // @desc    Login franchise owner
 // @route   POST /api/franchise/login
@@ -115,7 +182,15 @@ exports.loginFranchise = async (req, res) => {
 // @access  Private (only for organizers)
 exports.getAllFranchises = async (req, res) => {
   try {
-    const franchises = await Franchise.find().sort({ createdAt: -1 });
+    // Find all tournaments created by the current organizer
+    const Tournament = require('../models/Tournament');
+    const organizerTournaments = await Tournament.find({ organizer: req.user._id });
+    
+    // Get the IDs of these tournaments
+    const tournamentIds = organizerTournaments.map(tournament => tournament._id);
+    
+    // Find franchises that belong to these tournaments
+    const franchises = await Franchise.find({ tournament: { $in: tournamentIds } }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,

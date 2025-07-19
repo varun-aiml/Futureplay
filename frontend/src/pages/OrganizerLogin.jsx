@@ -86,6 +86,8 @@ function OrganizerLogin() {
 
   // Google OAuth Sign In
   const handleGoogleSignIn = () => {
+    // http://localhost:5000/api/auth/google
+    // https://sportstek.onrender.com/api/auth/google
     window.location.href = "https://sportstek.onrender.com/api/auth/google";
   };
 

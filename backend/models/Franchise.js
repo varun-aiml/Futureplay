@@ -34,6 +34,10 @@ const franchiseSchema = new mongoose.Schema({
     ref: 'Tournament',
     required: [true, 'Tournament selection is required']
   },
+  logoUrl: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now

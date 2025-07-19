@@ -130,23 +130,36 @@ const FranchiseOwnersView = ({ tournamentId, events }) => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Franchises List */}
-          <div className="md:col-span-1 bg-gray-800 rounded-xl p-4">
-            <h3 className="text-lg font-medium text-white mb-3">Franchises</h3>
-            <div className="space-y-2">
-              {franchises.map(franchise => (
-                <div 
-                  key={franchise._id}
-                  onClick={() => handleFranchiseSelect(franchise)}
-                  className={`p-3 rounded-md cursor-pointer transition-colors ${selectedFranchise?._id === franchise._id ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  <h4 className="font-medium text-white">{franchise.franchiseName}</h4>
-                  <p className="text-sm text-gray-300">Owner: {franchise.ownerName}</p>
-                  <p className="text-xs text-gray-400">Teams: {getFranchiseTeams(franchise._id).length}</p>
-                </div>
-              ))}
+{/* Franchises List */}
+<div className="md:col-span-1 bg-gray-800 rounded-xl p-4">
+  <h3 className="text-lg font-medium text-white mb-3">Franchises</h3>
+  <div className="space-y-2">
+    {franchises.map(franchise => (
+      <div 
+        key={franchise._id}
+        onClick={() => handleFranchiseSelect(franchise)}
+        className={`p-3 rounded-md cursor-pointer transition-colors ${selectedFranchise?._id === franchise._id ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+      >
+        <div className="flex items-center mb-2">
+          {franchise.logoUrl ? (
+            <img 
+              src={franchise.logoUrl} 
+              alt={`${franchise.franchiseName} logo`} 
+              className="h-10 w-10 rounded-full object-cover border border-gray-600 mr-3"
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-bold mr-3">
+              {franchise.franchiseName.charAt(0)}
             </div>
-          </div>
+          )}
+          <h4 className="font-medium text-white">{franchise.franchiseName}</h4>
+        </div>
+        <p className="text-sm text-gray-300">Owner: {franchise.ownerName}</p>
+        <p className="text-xs text-gray-400">Teams: {getFranchiseTeams(franchise._id).length}</p>
+      </div>
+    ))}
+  </div>
+</div>
           
           {/* Teams List */}
           <div className="md:col-span-2 bg-gray-800 rounded-xl p-4">

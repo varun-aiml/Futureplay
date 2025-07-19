@@ -3,6 +3,7 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 const path = require('path');
+const mongoose = require('mongoose');
 
 // Configure Cloudinary (you'll need to add your credentials to .env)
 cloudinary.config({
@@ -119,7 +120,15 @@ exports.updateFixture = async (req, res) => {
 // Get a single tournament by ID
 exports.getTournamentById = async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id);
+    const tournament = await Tournament.findById(req.params.id)
+      .populate({
+        path: 'events.fixtures.pools.A',
+        model: 'Franchise'
+      })
+      .populate({
+        path: 'events.fixtures.pools.B',
+        model: 'Franchise'
+      });
 
     if (!tournament) {
       return res.status(404).json({
@@ -395,12 +404,11 @@ exports.deleteEvent = async (req, res) => {
 
 exports.getTopTournaments = async (req, res) => {
   try {
-
     const tournaments = await Tournament.find({
-      status: { $in: ['Upcoming', 'Completed'] }
+      status: { $in: ['Upcoming', 'Completed', 'Active'] }
     })
       .sort({ startDate: -1 })
-      .limit(5)
+      .limit(10) // Increased limit to accommodate more tournaments
       .select('name startDate endDate location posterUrl status'); // Select only needed fields
 
     res.status(200).json({
@@ -417,10 +425,20 @@ exports.getTopTournaments = async (req, res) => {
   }
 };
 
+
 // Get a single tournament by ID (public endpoint)
 exports.getPublicTournamentById = async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id);
+    // Change this line to include population
+    const tournament = await Tournament.findById(req.params.id)
+      .populate({
+        path: 'events.fixtures.pools.A',
+        model: 'Franchise'
+      })
+      .populate({
+        path: 'events.fixtures.pools.B',
+        model: 'Franchise'
+      });
 
     if (!tournament) {
       return res.status(404).json({
@@ -489,6 +507,105 @@ exports.generateKnockoutFixtures = (fixtures, participants) => {
   
   fixtures.matches = matches;
   return fixtures;
+};
+
+// Add this function to update pool arrangements
+exports.updatePoolArrangements = async (req, res) => {
+  try {
+    const { tournamentId, eventId, poolsData } = req.body;
+    
+    if (!tournamentId) {
+      return res.status(400).json({ success: false, message: 'Missing tournamentId' });
+    }
+    if (!eventId) {
+      return res.status(400).json({ success: false, message: 'Missing eventId' });
+    }
+    if (!poolsData) {
+      return res.status(400).json({ success: false, message: 'Missing poolsData' });
+    }
+    
+    // Find the tournament
+    const tournament = await Tournament.findById(tournamentId);
+    
+    if (!tournament) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Tournament not found' 
+      });
+    }
+    
+    // Find the event
+    const event = tournament.events.id(eventId);
+    
+    if (!event) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Event not found' 
+      });
+    }
+    
+    // Convert string IDs to ObjectIds
+    const processedPoolsData = {
+      A: poolsData.A.map(id => new mongoose.Types.ObjectId(id)),
+      B: poolsData.B.map(id => new mongoose.Types.ObjectId(id))
+    };
+    
+    // Check if fixtures exist, create if not
+    if (!event.fixtures || event.fixtures.length === 0) {
+      event.fixtures = [{
+        pools: processedPoolsData,
+        status: 'Generated',
+        matches: [],
+        groups: []
+      }];
+    } else {
+      // Update existing fixtures
+      event.fixtures[0].pools = processedPoolsData;
+    }
+    
+    try {
+      await tournament.save();
+      
+      // Verify the saved data by retrieving it fresh from the database
+      const savedTournament = await Tournament.findById(tournamentId)
+        .populate({
+          path: 'events.fixtures.pools.A',
+          model: 'Franchise'
+        })
+        .populate({
+          path: 'events.fixtures.pools.B',
+          model: 'Franchise'
+        });
+      const savedEvent = savedTournament.events.id(eventId);
+      
+      // console.log('Tournament saved successfully with pools:', 
+      //   JSON.stringify(savedEvent.fixtures[0].pools));
+      // console.log('Populated pools data:', 
+      //   JSON.stringify(savedEvent.fixtures[0].pools, null, 2));
+    } catch (saveError) {
+      console.error('Error saving tournament:', saveError);
+      return res.status(400).json({
+        success: false,
+        message: 'Error saving pool data',
+        error: saveError.message
+      });
+    }
+
+    // console.log('After save - event fixtures:', JSON.stringify(event.fixtures));
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Pool arrangements updated successfully',
+      data: event.fixtures[0].pools
+    });
+  } catch (error) {
+    console.error('Error updating pool arrangements:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
 };
 
 exports.generateLeagueFixtures = (fixtures, participants) => {

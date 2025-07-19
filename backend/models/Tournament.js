@@ -51,6 +51,16 @@ const eventSchema = new mongoose.Schema({
         enum: ['Generated', 'Modified', 'Insufficient Participants'],
         default: 'Generated'
       },
+      pools: {
+        A: [{
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Franchise'
+        }],
+        B: [{
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Franchise'
+        }]
+      },
       matches: [{
         round: Number,
         matchNumber: Number,

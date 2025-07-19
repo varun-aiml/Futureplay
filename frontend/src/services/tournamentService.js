@@ -26,6 +26,26 @@ export const updateFixture = async (tournamentId, eventId, fixtureData) => {
   // return response;
 };
 
+// Add this function to update pool arrangements in the database
+export const updatePoolArrangements = async (tournamentId, eventId, poolsData) => {
+  try {
+    console.log('Sending request with data:', { tournamentId, eventId, poolsData });
+    const response = await api.put('/tournaments/pools', {  // This is the correct endpoint
+      tournamentId,
+      eventId,
+      poolsData
+    });
+    return response;
+  } catch (error) {
+    console.error('Error updating pool arrangements:', error);
+    // Log more details about the error response if available
+    if (error.response && error.response.data) {
+      console.error('Server response:', error.response.data);
+    }
+    throw error;
+  }
+};
+
 // Get all tournaments (for players)
 export const getAllTournaments = async () => {
   const response = await api.get('/tournaments/all');
