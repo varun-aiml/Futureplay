@@ -107,12 +107,6 @@ function FranchiseLogin() {
             </button>
           </div>
         </form>
-
-        <div className="mt-6 text-center">
-  <p className="text-gray-400 text-sm">
-    Don't have an account? <Link to="/franchise/registration" className="text-red-400 hover:text-red-300">Register as a franchise owner</Link>
-  </p>
-</div>
       </div>
     </div>
   );

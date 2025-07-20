@@ -59,7 +59,7 @@ function Header() {
           {/* Desktop Buttons */}
           <div className="hidden md:flex space-x-3">
             <Link 
-              to="/franchise/registration"
+              to="/franchise/login"
               className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md"
             >
               Franchise Owner
@@ -101,7 +101,7 @@ function Header() {
               
               <div className="flex flex-col space-y-3 pt-2">
                 <Link 
-                  to="/franchise/registration"
+                  to="/franchise/login"
                   className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md text-center"
                   onClick={() => setIsMenuOpen(false)}
                 >

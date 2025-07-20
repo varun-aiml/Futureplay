@@ -17,6 +17,8 @@ function FranchiseRegistration() {
   const [tournaments, setTournaments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const navigate = useNavigate();
 
   // Fetch available tournaments
@@ -44,6 +46,33 @@ function FranchiseRegistration() {
     });
   };
 
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please upload a valid image file (JPEG, PNG, or GIF)');
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setLogoFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -55,9 +84,16 @@ function FranchiseRegistration() {
         return;
       }
 
-      await registerFranchise(formData);
+      // Add logo to form data if selected
+      const dataToSubmit = {
+        ...formData,
+        logo: logoFile
+      };
+
+      await registerFranchise(dataToSubmit);
       toast.success('Franchise registration successful!');
-      navigate('/franchise/login');
+      // Change this line to redirect to organizer home instead of franchise login
+      navigate('/organizer/home');
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
@@ -72,11 +108,23 @@ function FranchiseRegistration() {
     </label>
   );
 
+  const handleBackToOrganizer = () => {
+    navigate('/organizer/home');
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="mt-4 text-center">
+    <button
+      onClick={handleBackToOrganizer}
+      className="text-gray-400 hover:text-white transition-colors"
+    >
+      ← Back to Organizer Dashboard
+    </button>
+  </div>
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <img className="mx-auto h-16 w-auto" src={logo} alt="ServeUp Logo" />
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">Register as a Franchise Owner</h2>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">Add New Franchise</h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -178,6 +226,30 @@ function FranchiseRegistration() {
               )}
             </div>
 
+            <div>
+              <label htmlFor="logo" className="block text-sm font-medium text-gray-300 mb-1">
+                Franchise Logo
+              </label>
+              <div className="flex items-center space-x-4">
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    id="logo"
+                    name="logo"
+                    onChange={handleLogoChange}
+                    accept="image/jpeg,image/png,image/gif"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-white file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-700"
+                  />
+                  <p className="mt-1 text-xs text-gray-400">Max size: 5MB. Formats: JPG, PNG, GIF</p>
+                </div>
+                {logoPreview && (
+                  <div className="h-16 w-16 rounded-md overflow-hidden border border-gray-600">
+                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover" />
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="pt-4 flex flex-col space-y-3">
               <button
                 type="submit"
@@ -192,15 +264,15 @@ function FranchiseRegistration() {
                     </svg>
                     Processing...
                   </>
-                ) : 'Register as Franchise Owner'}
+                ) : 'Add New Franchise'}
               </button>
               
-              <Link
+              {/* <Link
                 to="/franchise/login"
                 className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center"
               >
                 Already Registered? Login
-              </Link>
+              </Link> */}
             </div>
           </form>
 

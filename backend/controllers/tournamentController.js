@@ -429,7 +429,6 @@ exports.getTopTournaments = async (req, res) => {
 // Get a single tournament by ID (public endpoint)
 exports.getPublicTournamentById = async (req, res) => {
   try {
-    // Change this line to include population
     const tournament = await Tournament.findById(req.params.id)
       .populate({
         path: 'events.fixtures.pools.A',

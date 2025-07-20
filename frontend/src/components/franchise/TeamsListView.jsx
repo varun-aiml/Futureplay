@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFranchise } from '../../context/franchiseContext';
-import { getTournamentBookings } from '../../services/bookingService';
-import { getTournamentById } from '../../services/tournamentService';
+import { getTournamentById } from '../../services/franchiseBookingService';
+import { getTournamentPlayers } from '../../services/franchiseAuctionService';
 
 const TeamsListView = () => {
   const { franchise } = useFranchise();
@@ -23,8 +23,7 @@ const TeamsListView = () => {
           setIsLoading(true);
           
           // Get tournament details to display the name
-          const tournamentResponse = await getTournamentById(franchise.tournament);
-          const tournamentData = tournamentResponse.data.data;
+          const tournamentData = await getTournamentById(franchise.tournament);
           
           // Add validation to ensure tournamentData exists
           if (!tournamentData) {
@@ -33,21 +32,17 @@ const TeamsListView = () => {
           
           setTournamentName(tournamentData.name);
           
-          // Get bookings for this tournament
-          const bookingsResponse = await getTournamentBookings(franchise.tournament);
-          const bookingsData = bookingsResponse.data.data;
+          // Get players for this tournament using the same method as SuperAuction.jsx
+          const response = await getTournamentPlayers(franchise.tournament);
           
-          // Validate that bookingsData is an array before using map
-          if (!Array.isArray(bookingsData)) {
-            setBookings([]);
+          // Filter players to only include those assigned to this franchise
+          if (response.data && Array.isArray(response.data)) {
+            const franchisePlayers = response.data.filter(player => 
+              player.franchise && player.franchise._id === franchise._id
+            );
+            setBookings(franchisePlayers);
           } else {
-            // Add tournament name to each booking for display
-            const bookingsWithTournamentName = bookingsData.map(booking => ({
-              ...booking,
-              tournamentName: tournamentData.name
-            }));
-            
-            setBookings(bookingsWithTournamentName);
+            setBookings([]);
           }
           
           setIsLoading(false);
@@ -78,10 +73,10 @@ const TeamsListView = () => {
       {/* Tournament information */}
       <div className="mb-4">
         <h3 className="text-lg font-medium text-white mb-2">
-          Tournament: {tournamentName || 'Loading...'}
+          Tournament: {tournamentName || 'Assigned'}
         </h3>
         <p className="text-sm text-gray-400">
-          Showing all teams registered for this tournament
+          Showing teams assigned to your franchise
         </p>
       </div>
       
@@ -94,41 +89,20 @@ const TeamsListView = () => {
           {error}
         </div>
       ) : bookings.length > 0 ? (
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
+        <div className="bg-gray-800 rounded-lg overflow-hidden">
+          <div className="p-4 bg-gray-700">
+            <h3 className="text-white font-medium">Players assigned to your franchise</h3>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-700">
               <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Team Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Event
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Date of Birth
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Gender
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    T-shirt Size
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Registration
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Registration Date
-                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Player Name</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Franchise</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Gender</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">T-Shirt Size</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -138,16 +112,10 @@ const TeamsListView = () => {
                       {booking.playerName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {getEventName(booking.event)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {booking.email}
+                      {booking.franchise ? booking.franchise.franchiseName : 'Not Assigned'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {booking.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {booking.dateOfBirth ? new Date(booking.dateOfBirth).toLocaleDateString() : 'Not provided'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {booking.gender || 'Not provided'}
@@ -156,17 +124,9 @@ const TeamsListView = () => {
                       {booking.tShirtSize || 'Not provided'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRegistrationSource(booking) === 'online' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>
-                        {getRegistrationSource(booking) === 'online' ? 'Online' : 'Offline'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${booking.status === 'Confirmed' ? 'bg-green-900 text-green-300' : booking.status === 'Cancelled' ? 'bg-red-900 text-red-300' : 'bg-yellow-900 text-yellow-300'}`}>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${booking.status === 'Confirmed' ? 'bg-green-100 text-green-800' : booking.status === 'Cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {booking.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : 'Unknown'}
                     </td>
                   </tr>
                 ))}
@@ -177,7 +137,7 @@ const TeamsListView = () => {
       ) : (
         <div className="bg-gray-800 rounded-xl p-6 text-center">
           <p className="text-gray-400">
-            No teams registered for this tournament yet.
+          No teams assigned to your franchise for this tournament yet.
           </p>
         </div>
       )}

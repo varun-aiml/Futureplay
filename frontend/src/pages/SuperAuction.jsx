@@ -54,14 +54,23 @@ function SuperAuction() {
             response = await getUpcomingAuctions(franchise.tournament);
             setAuctions(response.data);
           }
-        } else {
+        }else {
           // Franchises/Players/Fixtures/Results tabs
           if (activeTab === 'franchises') {
             response = await getTournamentFranchises(franchise.tournament);
             setFranchises(response.data);
           } else if (activeTab === 'players') {
             response = await getTournamentPlayers(franchise.tournament);
-            setPlayers(response.data);
+            
+            // Filter players to only include those assigned to this franchise
+            if (response.data && Array.isArray(response.data)) {
+              const franchisePlayers = response.data.filter(player => 
+                player.franchise && player.franchise._id === franchise._id
+              );
+              setPlayers(franchisePlayers);
+            } else {
+              setPlayers([]);
+            }
           }
           // No need to fetch data for fixtures tab as it loads from localStorage
           // No need to fetch data for results tab as ResultsView handles its own data fetching
@@ -224,7 +233,7 @@ function SuperAuction() {
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Logo</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Franchise Name</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Owner</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th>
+                      {/* <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contact</th> */}
                     </tr>
                   </thead>
                   <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -245,7 +254,7 @@ function SuperAuction() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{franchise.franchiseName}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{franchise.ownerName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{franchise.whatsappNumber}</td>
+                        {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{franchise.whatsappNumber}</td> */}
                       </tr>
                     ))}
                   </tbody>
@@ -256,10 +265,13 @@ function SuperAuction() {
             // Players View
             players.length === 0 ? (
               <div className="bg-gray-800 rounded-lg p-6 text-center">
-                <p className="text-gray-400">No players found for this tournament.</p>
+                <p className="text-gray-400">No players assigned to your franchise.</p>
               </div>
             ) : (
               <div className="bg-gray-800 rounded-lg overflow-hidden">
+                <div className="p-4 bg-gray-700">
+                  <h3 className="text-white font-medium">Players assigned to your franchise</h3>
+                </div>
                 <table className="min-w-full divide-y divide-gray-700">
                   <thead className="bg-gray-700">
                     <tr>

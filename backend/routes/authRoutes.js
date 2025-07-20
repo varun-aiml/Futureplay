@@ -35,7 +35,7 @@ router.get(
     } else {
       // http://localhost:5173/
       // https://sportstek-frontend.onrender.com/
-      res.redirect(`https://sportstek-frontend.onrender.com/home?data=${encodeURIComponent(userData)}`);
+      res.redirect(`https://sportstek-frontend.onrender.com/organizer/home?data=${encodeURIComponent(userData)}`);
     }
     // if (!req.user.profileComplete) {
     //   res.redirect(`${process.env.FRONTEND_URL}/complete-profile?data=${encodeURIComponent(userData)}`);

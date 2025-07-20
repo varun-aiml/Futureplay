@@ -33,7 +33,7 @@ export const removeTeamFromFranchise = async (bookingId) => {
 // Get all franchises for a tournament
 export const getTournamentFranchises = async (tournamentId) => {
   const response = await api.get(`/bookings/tournament/${tournamentId}/franchises`);
-  return response;
+  return response.data;
 };
 
 // Update team event

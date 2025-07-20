@@ -4,6 +4,7 @@ import { getAllFranchises, registerFranchise, updateFranchiseLogo } from "../ser
 import { getAllTournaments } from "../services/tournamentService";
 import OrganizerLayout from "../components/OrganizerLayout";
 import { toast } from "react-toastify";
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -33,6 +34,7 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
     whatsappNumber: "",
     tournament: "",
   });
+  const navigate = useNavigate();
   const [tournaments, setTournaments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,46 +150,53 @@ const AddFranchiseModal = ({ isOpen, onClose, onSuccess }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-md w-full border border-gray-700 animate-slideIn">
-        <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
-          <h2 className="text-2xl font-bold text-white flex items-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 mr-2 text-red-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
-            ADD NEW FRANCHISE
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors hover:bg-red-600 hover:bg-opacity-20 p-2 rounded-full"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+<div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+  <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl shadow-2xl p-6 max-w-md w-full border border-gray-700 animate-slideIn my-8">
+    <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+      <h2 className="text-2xl font-bold text-white flex items-center">
+        Add Franchise
+      </h2>
+      <button
+        onClick={onClose}
+        className="text-gray-400 hover:text-white transition-colors hover:bg-red-600 hover:bg-opacity-20 p-2 rounded-full"
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+    </div>
+    
+    <button 
+      onClick={() => navigate('/franchise/registration')} 
+      className="w-full mb-6 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition duration-300 flex items-center justify-center"
+    >
+      <svg
+        className="w-4 h-4 mr-1"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+        />
+      </svg>
+      Add New Franchise
+    </button>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -548,6 +557,7 @@ const LogoUploadModal = ({ isOpen, onClose, franchiseId, onSuccess }) => {
 
 function OrganizerHome() {
   const { user, loginUser } = useAuth();
+  const navigate = useNavigate();
   const [chartHeight, setChartHeight] = useState(300);
   const [showAddFranchiseModal, setShowAddFranchiseModal] = useState(false);
   const [showLogoUploadModal, setShowLogoUploadModal] = useState(false);
@@ -983,31 +993,31 @@ function OrganizerHome() {
 
         {/* Franchise Owners Section */}
         <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8">
-          <div className="p-5 border-b border-gray-700 flex justify-between items-center">
-            <h3 className="text-xl font-semibold text-white">
-              Franchise Owners
-            </h3>
-            <button 
-              onClick={() => setShowAddFranchiseModal(true)}
-              className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition duration-300 flex items-center"
-            >
-              <svg
-                className="w-4 h-4 mr-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Add New Franchise
-            </button>
-          </div>
+        <div className="p-5 border-b border-gray-700 flex justify-between items-center">
+  <h3 className="text-xl font-semibold text-white">
+    Franchise Owners
+  </h3>
+  <Link 
+    to="/franchise/registration"
+    className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-4 rounded-md transition duration-300 flex items-center"
+  >
+    <svg
+      className="w-4 h-4 mr-1"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+      />
+    </svg>
+    Add New Franchise
+  </Link>
+</div>
           
           {loadingFranchises ? (
             <div className="p-8 text-center">
