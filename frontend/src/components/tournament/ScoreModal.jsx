@@ -13,6 +13,11 @@ const ScoreModal = ({ match, onClose, onSave }) => {
   const [completed, setCompleted] = useState(false);
   const [winner, setWinner] = useState(null);
   
+  // Walkover state
+  const [isWalkover, setIsWalkover] = useState(false);
+  const [showWalkoverConfirm, setShowWalkoverConfirm] = useState(false);
+  const [walkoverTeamIndex, setWalkoverTeamIndex] = useState(null);
+  
   // Parse scoring format from match prop
   const scoringFormat = match.scoringFormat || '21-3'; // Default if not provided
   const [pointsToWin, numberOfSets] = scoringFormat.split('-').map(Number);
@@ -39,6 +44,7 @@ const ScoreModal = ({ match, onClose, onSave }) => {
         setCurrentSet(0);
         setCompleted(false);
         setWinner(null);
+        setIsWalkover(false);
         
         // Reset history for re-scoring
         setHistory([]);
@@ -54,6 +60,7 @@ const incrementScore = (teamIndex) => {
       // Allow re-scoring even if match was previously completed
       setCompleted(false);
       setWinner(null);
+      setIsWalkover(false);
     }
     
     // Check if the set is already won by either team
@@ -95,6 +102,7 @@ const incrementScore = (teamIndex) => {
       // Allow re-scoring even if match was previously completed
       setCompleted(false);
       setWinner(null);
+      setIsWalkover(false);
     }
     
     // Don't decrement below zero
@@ -165,6 +173,7 @@ const incrementScore = (teamIndex) => {
     setHistory(history.slice(0, -1));
     setCompleted(false);
     setWinner(null);
+    setIsWalkover(false);
     
     // Auto-save after undo
     autoSaveScore(lastState.scores, false, null);
@@ -187,27 +196,59 @@ const incrementScore = (teamIndex) => {
     return playedSets.join(',');
   };
   
-    // Auto-save score function
-    const autoSaveScore = (scoresToSave, isCompleted, matchWinner) => {
-        const formattedScore = formatScore(scoresToSave);
-        onSave({
-          score: formattedScore,
-          completed: isCompleted,
-          winner: matchWinner
-        }, false); // Pass false to prevent toast during auto-save
-      };
-      
-      // Save score (keep this for the manual save button)
-      const handleSave = () => {
-        const formattedScore = formatScore();
-        onSave({
-          score: formattedScore,
-          completed: completed,
-          winner: winner
-        }, true); // Pass true to show toast when manually saving
-        toast.success('Score saved successfully!');
-        onClose();
-      };
+  // Auto-save score function
+  const autoSaveScore = (scoresToSave, isCompleted, matchWinner) => {
+    const formattedScore = formatScore(scoresToSave);
+    onSave({
+      score: formattedScore,
+      completed: isCompleted,
+      winner: matchWinner,
+      walkover: false // Default to false for auto-save
+    }, false); // Pass false to prevent toast during auto-save
+  };
+  
+  // Handle walkover click
+  const handleWalkoverClick = (teamIndex) => {
+    setWalkoverTeamIndex(teamIndex);
+    setShowWalkoverConfirm(true);
+  };
+  
+  // Apply walkover
+  const applyWalkover = () => {
+    setIsWalkover(true);
+    setCompleted(true);
+    setWinner(walkoverTeamIndex);
+    setShowWalkoverConfirm(false);
+    
+    // Reset scores to 0-0 for walkover
+    const newScores = [
+      [0, 0],
+      [0, 0],
+      [0, 0]
+    ];
+    setScores(newScores);
+    
+    toast.info(`Walkover applied - ${walkoverTeamIndex === 0 ? match.team1Name : match.team2Name} wins by walkover`);
+  };
+  
+  // Cancel walkover
+  const cancelWalkover = () => {
+    setShowWalkoverConfirm(false);
+    setWalkoverTeamIndex(null);
+  };
+  
+  // Save score (keep this for the manual save button)
+  const handleSave = () => {
+    const formattedScore = formatScore();
+    onSave({
+      score: formattedScore,
+      completed: completed,
+      winner: winner,
+      walkover: isWalkover
+    }, true); // Pass true to show toast when manually saving
+    toast.success('Score saved successfully!');
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
@@ -255,111 +296,158 @@ const incrementScore = (teamIndex) => {
                 <h3 className="text-lg font-medium text-white mb-2">
                   {match.team1Name || 'Team 1'}
                 </h3>
+                {!isWalkover && (
+                  <button
+                    onClick={() => handleWalkoverClick(0)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm"
+                  >
+                    Walkover Win
+                  </button>
+                )}
               </div>
               <div className="text-center">
                 <h3 className="text-lg font-medium text-white mb-2">
                   {match.team2Name || 'Team 2'}
                 </h3>
+                {!isWalkover && (
+                  <button
+                    onClick={() => handleWalkoverClick(1)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm"
+                  >
+                    Walkover Win
+                  </button>
+                )}
               </div>
             </div>
           </div>
           
-          {/* Scoring Interface */}
-          <div className="mb-8">
-            {/* Sets Tabs */}
-            {numberOfSets > 1 && (
-              <div className="flex border-b border-gray-700 mb-4">
-                {Array.from({ length: numberOfSets }).map((_, index) => (
-                  <button
-                    key={index}
-                    className={`px-4 py-2 font-medium ${index === currentSet
-                      ? 'text-red-500 border-b-2 border-red-500'
-                      : 'text-gray-400 hover:text-white'}`}
-                    onClick={() => !completed && setCurrentSet(index)}
-                    disabled={completed || index > currentSet}
-                  >
-                    Set {index + 1}
-                  </button>
-                ))}
+          {/* Walkover Confirmation Dialog */}
+          {showWalkoverConfirm && (
+            <div className="bg-gray-700 p-4 rounded-md mb-6">
+              <p className="text-white mb-4">
+                Are you sure you want to declare a walkover win for {walkoverTeamIndex === 0 ? match.team1Name : match.team2Name}?
+              </p>
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={cancelWalkover}
+                  className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyWalkover}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+                >
+                  Confirm Walkover
+                </button>
               </div>
-            )}
-            
-{/* Score Buttons */}
-<div className="grid grid-cols-2 gap-8 mb-6">
-  {/* Team 1 Score */}
-  <div className="flex flex-col items-center">
-    <div 
-      className={`bg-gray-700 p-6 rounded-xl text-center cursor-pointer transition-all hover:bg-gray-600 w-full ${completed && winner === 0 ? 'ring-2 ring-green-500' : ''}`}
-      onClick={() => incrementScore(0)}
-    >
-      <div className="text-6xl font-bold text-white mb-2">
-        {scores[currentSet][0]}
-      </div>
-      <div className="text-gray-400">
-        Tap to add point
-      </div>
-    </div>
-    <button
-      onClick={() => decrementScore(0)}
-      className="mt-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md"
-    >
-      - Subtract Point
-    </button>
-  </div>
-  
-  {/* Team 2 Score */}
-  <div className="flex flex-col items-center">
-    <div 
-      className={`bg-gray-700 p-6 rounded-xl text-center cursor-pointer transition-all hover:bg-gray-600 w-full ${completed && winner === 1 ? 'ring-2 ring-green-500' : ''}`}
-      onClick={() => incrementScore(1)}
-    >
-      <div className="text-6xl font-bold text-white mb-2">
-        {scores[currentSet][1]}
-      </div>
-      <div className="text-gray-400">
-        Tap to add point
-      </div>
-    </div>
-    <button
-      onClick={() => decrementScore(1)}
-      className="mt-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md"
-    >
-      - Subtract Point
-    </button>
-  </div>
-</div>
-            
-            {/* Match Status */}
-            {completed && (
-              <div className="bg-green-900 bg-opacity-30 border border-green-700 text-green-400 p-4 rounded-md mb-4 text-center">
-                <p className="font-medium">
-                  Match Completed - {winner === 0 ? match.team1Name || 'Team 1' : match.team2Name || 'Team 2'} Wins!
-                </p>
+            </div>
+          )}
+          
+          {/* Scoring Interface - Hide if walkover */}
+          {!isWalkover && (
+            <div className="mb-8">
+              {/* Sets Tabs */}
+              {numberOfSets > 1 && (
+                <div className="flex border-b border-gray-700 mb-4">
+                  {Array.from({ length: numberOfSets }).map((_, index) => (
+                    <button
+                      key={index}
+                      className={`px-4 py-2 font-medium ${index === currentSet
+                        ? 'text-red-500 border-b-2 border-red-500'
+                        : 'text-gray-400 hover:text-white'}`}
+                      onClick={() => !completed && setCurrentSet(index)}
+                      disabled={completed || index > currentSet}
+                    >
+                      Set {index + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Score Buttons */}
+              <div className="grid grid-cols-2 gap-8 mb-6">
+                {/* Team 1 Score */}
+                <div className="flex flex-col items-center">
+                  <div 
+                    className={`bg-gray-700 p-6 rounded-xl text-center cursor-pointer transition-all hover:bg-gray-600 w-full ${completed && winner === 0 ? 'ring-2 ring-green-500' : ''}`}
+                    onClick={() => incrementScore(0)}
+                  >
+                    <div className="text-6xl font-bold text-white mb-2">
+                      {scores[currentSet][0]}
+                    </div>
+                    <div className="text-gray-400">
+                      Tap to add point
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => decrementScore(0)}
+                    className="mt-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md"
+                  >
+                    - Subtract Point
+                  </button>
+                </div>
+                
+                {/* Team 2 Score */}
+                <div className="flex flex-col items-center">
+                  <div 
+                    className={`bg-gray-700 p-6 rounded-xl text-center cursor-pointer transition-all hover:bg-gray-600 w-full ${completed && winner === 1 ? 'ring-2 ring-green-500' : ''}`}
+                    onClick={() => incrementScore(1)}
+                  >
+                    <div className="text-6xl font-bold text-white mb-2">
+                      {scores[currentSet][1]}
+                    </div>
+                    <div className="text-gray-400">
+                      Tap to add point
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => decrementScore(1)}
+                    className="mt-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md"
+                  >
+                    - Subtract Point
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Match Status */}
+          {completed && (
+            <div className="bg-green-900 bg-opacity-30 border border-green-700 text-green-400 p-4 rounded-md mb-4 text-center">
+              <p className="font-medium">
+                {isWalkover ? (
+                  <>Walkover Winner: {winner === 0 ? match.team1Name || 'Team 1' : match.team2Name || 'Team 2'}</>
+                ) : (
+                  <>Match Completed - {winner === 0 ? match.team1Name || 'Team 1' : match.team2Name || 'Team 2'} Wins!</>
+                )}
+              </p>
+              {!isWalkover && (
                 <p className="text-sm mt-1">
                   Final Score: {formatScore()}
                 </p>
-              </div>
-            )}
-            
-            {/* Action Buttons */}
-            <div className="flex justify-between">
-              <button
-                onClick={handleUndo}
-                disabled={history.length === 0 || completed}
-                className={`px-4 py-2 rounded-md ${history.length === 0 || completed
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-yellow-600 hover:bg-yellow-700 text-white'}`}
-              >
-                Undo
-              </button>
-              
-              <button
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
-              >
-                Save Score
-              </button>
+              )}
             </div>
+          )}
+          
+          {/* Action Buttons */}
+          <div className="flex justify-between">
+            <button
+              onClick={handleUndo}
+              disabled={history.length === 0 || completed || isWalkover}
+              className={`px-4 py-2 rounded-md ${history.length === 0 || completed || isWalkover
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-yellow-600 hover:bg-yellow-700 text-white'}`}
+            >
+              Undo
+            </button>
+            
+            <button
+              onClick={handleSave}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+            >
+              Save Score
+            </button>
           </div>
         </div>
       </div>

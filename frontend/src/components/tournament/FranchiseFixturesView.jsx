@@ -4,6 +4,8 @@ import { getTournamentBookings, updateTeamEvent } from '../../services/bookingSe
 import { toast } from 'react-toastify';
 import ScoreModal from './ScoreModal';
 import { updatePoolArrangements, getTournamentById } from '../../services/tournamentService';
+import TimerModal from './TimerModal';
+import WalkoverModal from './WalkoverModal';
 
 const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   const [franchises, setFranchises] = useState([]);
@@ -26,7 +28,7 @@ const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
   const [isGeneratingFixtures, setIsGeneratingFixtures] = useState(false);
   const [fixtureError, setFixtureError] = useState('');
   const [expandedMatch, setExpandedMatch] = useState(null);
-  const [declaredResults, setDeclaredResults] = useState({});
+  const [declaredResults, setDeclaredResults] = useState([]);
   const [declaredMatchIds, setDeclaredMatchIds] = useState([]);
   const [forceUpdate, setForceUpdate] = useState(0);
   const [selectedFranchiseForPool, setSelectedFranchiseForPool] = useState('');
@@ -44,6 +46,40 @@ const FranchiseFixturesView = ({ tournamentId, events, readOnly = false }) => {
     B: '21-3',
     knockout: '21-3'
   });
+  const [showFranchiseSelectionModal, setShowFranchiseSelectionModal] = useState(false);
+  const [selectedMatchForFranchiseSelection, setSelectedMatchForFranchiseSelection] = useState(null);
+  const [selectedFranchisePosition, setSelectedFranchisePosition] = useState(null);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [selectedMatchForTimer, setSelectedMatchForTimer] = useState(null);
+  const [matchTimers, setMatchTimers] = useState({});
+  const [dropdownOpen, setDropdownOpen] = useState({});
+const [selectedTeams, setSelectedTeams] = useState({});
+const [multiTeamSelections, setMultiTeamSelections] = useState({});
+const [showWalkoverModal, setShowWalkoverModal] = useState(false);
+const [selectedMatchForWalkover, setSelectedMatchForWalkover] = useState(null);
+const [unscoredMatches, setUnscoredMatches] = useState([]);
+
+   // Load timers from localStorage
+   useEffect(() => {
+    const savedTimers = localStorage.getItem(`tournament_${tournamentId}_timers`);
+    if (savedTimers) {
+      try {
+        setMatchTimers(JSON.parse(savedTimers));
+      } catch (error) {
+        console.error('Error loading timers from localStorage:', error);
+      }
+    }
+  }, [tournamentId]);
+
+    // Save timers to localStorage whenever they change
+    useEffect(() => {
+      if (Object.keys(matchTimers).length > 0) {
+        localStorage.setItem(`tournament_${tournamentId}_timers`, JSON.stringify(matchTimers));
+      }
+    }, [matchTimers, tournamentId]);
+
+
+
 // Fetch franchises and bookings
 useEffect(() => {
   const fetchData = async () => {
@@ -83,6 +119,219 @@ useEffect(() => {
   
   fetchData();
 }, [tournamentId]);
+
+// Add this helper function to check if an event is a triplets event
+const isTripletEvent = (eventId) => {
+  const event = events.find(e => e._id === eventId);
+  return event && event.name.toLowerCase().includes('triplet');
+};
+
+
+// Add this function to handle checkbox selection
+const handleTeamCheckboxChange = (matchId, eventId, franchiseSide, teamId, isChecked) => {
+  const key = `${matchId}-${eventId}-${franchiseSide}`;
+  
+  setSelectedTeams(prev => {
+    const currentSelected = prev[key] || [];
+    
+    if (isChecked) {
+      // Add team if checked and not already in the list
+      if (!currentSelected.includes(teamId)) {
+        // Check if this is a triplet event (allow 3 selections) or regular event (limit to 2)
+        const maxSelections = isTripletEvent(eventId) ? 3 : 2;
+        const newSelection = [...currentSelected, teamId].slice(0, maxSelections);
+        return { ...prev, [key]: newSelection };
+      }
+    } else {
+      // Remove team if unchecked
+      return { 
+        ...prev, 
+        [key]: currentSelected.filter(id => id !== teamId) 
+      };
+    }
+    
+    return prev;
+  });
+};
+
+// Add this function to toggle dropdown visibility
+const toggleDropdown = (matchId, eventId, franchiseSide) => {
+  const key = `${matchId}-${eventId}-${franchiseSide}`;
+  setDropdownOpen(prev => ({
+    ...prev,
+    [key]: !prev[key]
+  }));
+};
+
+// Add this function to handle team assignment from multiple selections
+const handleMultiTeamAssignment = (matchId, poolType, eventId, franchiseSide) => {
+  const key = `${matchId}-${eventId}-${franchiseSide}`;
+  const selectedTeamIds = selectedTeams[key] || [];
+  
+  if (selectedTeamIds.length > 0) {
+    // Assign the first selected team to the event match
+    handleTeamAssignment(matchId, poolType, eventId, franchiseSide, selectedTeamIds[0]);
+    
+    // Store the additional team information for display purposes
+    if (selectedTeamIds.length > 1) {
+      // Create or update the multiTeamSelections state
+      setMultiTeamSelections(prev => ({
+        ...prev,
+        [`${matchId}-${eventId}-${franchiseSide}`]: selectedTeamIds
+      }));
+    }
+  }
+  
+  // Close the dropdown after selection
+  setDropdownOpen(prev => ({
+    ...prev,
+    [key]: false
+  }));
+};
+
+// Add this function to get the display text for selected teams
+const getSelectedTeamsDisplay = (matchId, eventId, franchiseSide, currentTeamId) => {
+  const key = `${matchId}-${eventId}-${franchiseSide}`;
+  const selectedTeamIds = selectedTeams[key] || [];
+  const isTriplet = isTripletEvent(eventId);
+  
+  if (selectedTeamIds.length === 0 && currentTeamId) {
+    // If nothing new is selected but we have a current team
+    const team = bookings.find(booking => booking._id === currentTeamId);
+    return team ? team.playerName : 'Select Team';
+  }
+  
+  if (selectedTeamIds.length === 0) {
+    return 'Select Team';
+  }
+  
+  if (selectedTeamIds.length === 1) {
+    const team = bookings.find(booking => booking._id === selectedTeamIds[0]);
+    return team ? team.playerName : 'Select Team';
+  }
+  
+  // If we have multiple selections
+  if (isTriplet && selectedTeamIds.length === 3) {
+    // For triplet events with 3 selections, display as "Team A, Team B, and Team C"
+    const team1 = bookings.find(booking => booking._id === selectedTeamIds[0]);
+    const team2 = bookings.find(booking => booking._id === selectedTeamIds[1]);
+    const team3 = bookings.find(booking => booking._id === selectedTeamIds[2]);
+    
+    if (team1 && team2 && team3) {
+      return `${team1.playerName}, ${team2.playerName}, and ${team3.playerName}`;
+    }
+  } else if (selectedTeamIds.length === 2) {
+    // For regular events with 2 selections, display as "Team A and Team B"
+    const team1 = bookings.find(booking => booking._id === selectedTeamIds[0]);
+    const team2 = bookings.find(booking => booking._id === selectedTeamIds[1]);
+    
+    if (team1 && team2) {
+      return `${team1.playerName} and ${team2.playerName}`;
+    }
+  }
+  
+  return 'Select Team';
+};
+
+  // Function to handle opening the timer modal
+  const handleOpenTimerModal = (match, poolType) => {
+    const matchId = match.id;
+    const timerData = matchTimers[matchId] || {};
+    
+    setSelectedMatchForTimer({
+      matchId,
+      poolType,
+      franchise1Name: match.franchise1.franchiseName,
+      franchise2Name: match.franchise2.franchiseName,
+      round: match.round, // For knockout matches
+      scheduledTime: timerData.scheduledTime || null
+    });
+    
+    setShowTimerModal(true);
+  };
+
+    // Function to handle saving timer data
+    const handleSaveTimer = (timerData) => {
+      if (!selectedMatchForTimer) return;
+      
+      const matchId = selectedMatchForTimer.matchId;
+      
+      setMatchTimers(prev => ({
+        ...prev,
+        [matchId]: timerData
+      }));
+    };
+
+      // Function to format timer display for match list
+      const formatTimerDisplay = (matchId) => {
+        const timer = matchTimers[matchId];
+        if (!timer || !timer.scheduledTime) return null;
+        
+        return {
+          scheduledTime: timer.scheduledTime
+        };
+      };
+
+  // Function to open franchise selection modal
+  const handleOpenFranchiseSelection = (match, position) => {
+    setSelectedMatchForFranchiseSelection(match);
+    setSelectedFranchisePosition(position);
+    setShowFranchiseSelectionModal(true);
+  };
+
+  // Function to handle franchise selection
+  const handleFranchiseSelection = (franchiseId) => {
+    if (!selectedMatchForFranchiseSelection || !selectedFranchisePosition) return;
+    
+    const selectedFranchise = franchises.find(f => f._id === franchiseId);
+    if (!selectedFranchise) return;
+    
+    setFixtures(prevFixtures => {
+      const updatedFixtures = { ...prevFixtures };
+      
+      updatedFixtures.knockout = updatedFixtures.knockout.map(match => {
+        if (match.id === selectedMatchForFranchiseSelection.id) {
+          // Update the franchise based on position
+          if (selectedFranchisePosition === 1) {
+            return {
+              ...match,
+              franchise1: selectedFranchise,
+              // Clear team selections for this franchise position
+              eventMatches: match.eventMatches.map(em => ({
+                ...em,
+                team1: null
+              }))
+            };
+          } else {
+            return {
+              ...match,
+              franchise2: selectedFranchise,
+              // Clear team selections for this franchise position
+              eventMatches: match.eventMatches.map(em => ({
+                ...em,
+                team2: null
+              }))
+            };
+          }
+        }
+        return match;
+      });
+      
+      return updatedFixtures;
+    });
+    
+    // Close modal and save changes
+    setShowFranchiseSelectionModal(false);
+    setTimeout(() => saveFixturesToLocalStorage(), 0);
+    toast.success(`Franchise updated successfully!`);
+  };
+
+  // Function to close franchise selection modal
+  const handleCloseFranchiseSelectionModal = () => {
+    setShowFranchiseSelectionModal(false);
+    setSelectedMatchForFranchiseSelection(null);
+    setSelectedFranchisePosition(null);
+  };
 
 // Add this function to save pool arrangements to the database
 const savePoolsToDatabase = async () => {
@@ -463,48 +712,168 @@ const handleOpenScoreModal = (match, eventMatch) => {
     setShowScoreModal(true);
   };
 
+// Function to handle walkover selection
+// Function to handle walkover for an event match
+// Function to handle walkover for an event match
+const handleWalkover = (eventId, winnerIndex) => {
+  // Find the match and event match
+  const match = selectedMatchForWalkover;
+  const eventMatch = match.eventMatches.find(em => em.eventId === eventId);
+  
+  if (!eventMatch) return;
+  
+  // IMPORTANT: Reverse the winner index for walkover
+  // If winnerIndex is 0, set winner to 1 (team2 wins)
+  // If winnerIndex is 1, set winner to 0 (team1 wins)
+  const actualWinner = winnerIndex === 0 ? 1 : 0;
+  
+  // Update the fixtures state with the walkover result
+  setFixtures(prevFixtures => {
+    const poolType = match.franchise1.poolName === 'A' ? 'A' : 
+                    match.franchise1.poolName === 'B' ? 'B' : 'knockout';
+    const poolKey = poolType === 'A' ? 'poolA' : poolType === 'B' ? 'poolB' : 'knockout';
+    
+    const updatedFixtures = { ...prevFixtures };
+    
+    // Find and update the specific match
+    updatedFixtures[poolKey] = updatedFixtures[poolKey].map(m => {
+      if (m.id === match.id) {
+        // Create a new array of event matches with the updated one
+        const updatedEventMatches = m.eventMatches.map(em => {
+          if (em.eventId === eventId) {
+            return {
+              ...em,
+              completed: true,
+              walkover: true,
+              winner: actualWinner
+            };
+          }
+          return em;
+        });
+        
+        return {
+          ...m,
+          eventMatches: updatedEventMatches
+        };
+      }
+      return m;
+    });
+    
+    return updatedFixtures;
+  });
+  
+  // Update declaredResults to include this walkover
+  setDeclaredResults(prevResults => {
+    // Ensure prevResults is an object (not an array)
+    const resultsObj = typeof prevResults === 'object' && !Array.isArray(prevResults) ? prevResults : {};
+    
+    return {
+      ...resultsObj,
+      [match.id]: {
+        ...(resultsObj[match.id] || {}),
+        walkoverEvents: {
+          ...(resultsObj[match.id]?.walkoverEvents || {}),
+          [eventId]: {
+            eventId,
+            winner: actualWinner, // Use actualWinner instead of winnerIndex
+            team1: eventMatch.team1,
+            team2: eventMatch.team2
+          }
+        }
+      }
+    };
+  });
+  
+  // IMPORTANT: Also update declaredResultsByPool
+  setDeclaredResultsByPool(prevPoolResults => {
+    const poolType = match.franchise1.poolName === 'A' ? 'A' : 
+                    match.franchise1.poolName === 'B' ? 'B' : 'knockout';
+    
+    return {
+      ...prevPoolResults,
+      [poolType]: {
+        ...(prevPoolResults[poolType] || {}),
+        [match.id]: {
+          ...(prevPoolResults[poolType]?.[match.id] || {}),
+          walkoverEvents: {
+            ...((prevPoolResults[poolType]?.[match.id]?.walkoverEvents) || {}),
+            [eventId]: {
+              eventId,
+              winner: actualWinner,
+              team1: eventMatch.team1,
+              team2: eventMatch.team2
+            }
+          }
+        }
+      }
+    };
+  });
+  
+  // Save to localStorage immediately without setTimeout
+  saveFixturesToLocalStorage(true);
+  
+  // Remove this match from unscored matches
+  setUnscoredMatches(prev => prev.filter(m => m.eventId !== eventId));
+  
+  // If no more unscored matches, close the modal
+  if (unscoredMatches.length <= 1) {
+    setShowWalkoverModal(false);
+  }
+  
+  toast.success(`Walkover recorded for ${eventMatch.eventName}`);
+  
+  // Trigger declare result after a short delay
+  setTimeout(() => {
+    const matchId = selectedMatchForWalkover.id;
+    const poolType = selectedMatchForWalkover.franchise1.poolName === 'A' ? 'A' : 
+                    selectedMatchForWalkover.franchise1.poolName === 'B' ? 'B' : 'knockout';
+    handleDeclareResult(matchId, poolType);
+  }, 300);
+};
+
 
 // Function to handle declaring results for a match
 const handleDeclareResult = (matchId, poolType) => {
-    // Get the match from the fixtures
-    const poolKey = poolType === 'A' ? 'poolA' : poolType === 'B' ? 'poolB' : 'knockout';
-    const match = fixtures[poolKey].find(m => m.id === matchId);
+  // Get the match from the fixtures
+  const poolKey = poolType === 'A' ? 'poolA' : poolType === 'B' ? 'poolB' : 'knockout';
+  const match = fixtures[poolKey].find(m => m.id === matchId);
+  
+  if (!match) return;
+  
+  // Check if all event matches have scores
+  const allMatchesScored = match.eventMatches.every(em => em.completed);
+  
+  if (!allMatchesScored) {
+    // Instead of showing the walkover modal, just show a toast message
+    toast.warning('All matches must be scored before declaring a result.');
+    return;
+  }
     
-    if (!match) return;
-    
-    // Check if all event matches have scores
-    const allMatchesScored = match.eventMatches.every(em => em.completed);
-    
-    if (!allMatchesScored) {
-      toast.error('All event matches must be scored before declaring a result');
-      return;
-    }
-    
-    // Count events won by each franchise and track total points
-    let franchise1EventsWon = 0;
-    let franchise2EventsWon = 0;
-    let franchise1TotalPoints = 0;
-    let franchise2TotalPoints = 0;
-    
-    match.eventMatches.forEach(eventMatch => {
-      if (eventMatch.completed) {
-        // Parse the score to calculate total points
-        if (eventMatch.score) {
-          const sets = eventMatch.score.split(',');
-          sets.forEach(set => {
-            const [team1Points, team2Points] = set.split('-').map(Number);
-            franchise1TotalPoints += team1Points;
-            franchise2TotalPoints += team2Points;
-          });
-        }
-        
-        if (eventMatch.winner === 0) { // Team 1 won
-          franchise1EventsWon++;
-        } else if (eventMatch.winner === 1) { // Team 2 won
-          franchise2EventsWon++;
-        }
+  // Count events won by each franchise and track total points
+  let franchise1EventsWon = 0;
+  let franchise2EventsWon = 0;
+  let franchise1TotalPoints = 0;
+  let franchise2TotalPoints = 0;
+  
+  match.eventMatches.forEach(eventMatch => {
+    if (eventMatch.completed) {
+      // Parse the score to calculate total points
+      if (eventMatch.score) {
+        const sets = eventMatch.score.split(',');
+        sets.forEach(set => {
+          const [team1Points, team2Points] = set.split('-').map(Number);
+          franchise1TotalPoints += team1Points;
+          franchise2TotalPoints += team2Points;
+        });
       }
-    });
+      
+      if (eventMatch.winner === 0) { // Team 1 won
+        franchise1EventsWon++;
+      } else if (eventMatch.winner === 1) { // Team 2 won
+        franchise2EventsWon++;
+      }
+    }
+  });
     
     // Determine the winner
     let winner = null;
@@ -539,55 +908,53 @@ const handleDeclareResult = (matchId, poolType) => {
     
     // IMPORTANT FIX: First get existing results from localStorage
     const savedDeclaredResults = localStorage.getItem(`declaredResults_${tournamentId}`);
-let parsedResults = {};
-let parsedResultsByPool = {
-  A: {},
-  B: {},
-  knockout: {}
-};
-
-if (savedDeclaredResults) {
-  try {
-    parsedResults = JSON.parse(savedDeclaredResults);
-    setDeclaredResults(parsedResults);
-    
-    // Also load pool-specific results
-    const savedDeclaredResultsByPool = localStorage.getItem(`declaredResultsByPool_${tournamentId}`);
-    if (savedDeclaredResultsByPool) {
-      parsedResultsByPool = JSON.parse(savedDeclaredResultsByPool);
-      setDeclaredResultsByPool(parsedResultsByPool);
-    } else {
-      // If we don't have pool-specific results yet, initialize from existing results
-      const resultsByPool = {
-        A: {},
-        B: {},
-        knockout: {}
-      };
-      
-      // Distribute existing results to appropriate pools
-      Object.keys(parsedResults).forEach(matchId => {
-        // Try to determine which pool this match belongs to
-        let matchPool = 'A'; // Default
+    let parsedResults = {};
+    let parsedResultsByPool = {
+      A: {},
+      B: {},
+      knockout: {}
+    };
+  
+    if (savedDeclaredResults) {
+      try {
+        parsedResults = JSON.parse(savedDeclaredResults);
         
-        if (fixtures.poolA.some(match => match.id === matchId)) {
-          matchPool = 'A';
-        } else if (fixtures.poolB.some(match => match.id === matchId)) {
-          matchPool = 'B';
-        } else if (fixtures.knockout.some(match => match.id === matchId)) {
-          matchPool = 'knockout';
+        // Also load pool-specific results
+        const savedDeclaredResultsByPool = localStorage.getItem(`declaredResultsByPool_${tournamentId}`);
+        if (savedDeclaredResultsByPool) {
+          parsedResultsByPool = JSON.parse(savedDeclaredResultsByPool);
+        } else {
+          // If we don't have pool-specific results yet, initialize from existing results
+          const resultsByPool = {
+            A: {},
+            B: {},
+            knockout: {}
+          };
+          
+          // Distribute existing results to appropriate pools
+          Object.keys(parsedResults).forEach(matchId => {
+            // Try to determine which pool this match belongs to
+            let matchPool = 'A'; // Default
+            
+            if (fixtures.poolA.some(match => match.id === matchId)) {
+              matchPool = 'A';
+            } else if (fixtures.poolB.some(match => match.id === matchId)) {
+              matchPool = 'B';
+            } else if (fixtures.knockout.some(match => match.id === matchId)) {
+              matchPool = 'knockout';
+            }
+            
+            resultsByPool[matchPool][matchId] = parsedResults[matchId];
+          });
+          
+          parsedResultsByPool = resultsByPool;
         }
-        
-        resultsByPool[matchPool][matchId] = parsedResults[matchId];
-      });
-      
-      parsedResultsByPool = resultsByPool;
-      setDeclaredResultsByPool(resultsByPool);
-      localStorage.setItem(`declaredResultsByPool_${tournamentId}`, JSON.stringify(resultsByPool));
+      } catch (error) {
+        console.error('Error loading declared results:', error);
+      }
     }
-  } catch (error) {
-    console.error('Error loading declared results:', error);
-  }
-}
+
+    
     
     // Merge new result with existing results
     const newResults = {
@@ -670,54 +1037,58 @@ setDeclaredResultsByPool(newResultsByPool);
     }, 200);
   };
   
-// Modify the handleSaveScore function
+// Modify the handleSaveScore function to handle walkover
 const handleSaveScore = (scoreData, showToast = false) => {
-    if (!selectedMatchForScoring) return;
+  if (!selectedMatchForScoring) return;
+  
+  setFixtures(prevFixtures => {
+    const updatedFixtures = { ...prevFixtures };
+    let targetPool;
     
-    setFixtures(prevFixtures => {
-      const updatedFixtures = { ...prevFixtures };
-      let targetPool;
-      
-      if (selectedMatchForScoring.poolType === 'knockout') {
-        targetPool = 'knockout';
-      } else if (selectedMatchForScoring.poolType === 'A') {
-        targetPool = 'poolA';
-      } else if (selectedMatchForScoring.poolType === 'B') {
-        targetPool = 'poolB';
+    if (selectedMatchForScoring.poolType === 'knockout') {
+      targetPool = 'knockout';
+    } else if (selectedMatchForScoring.poolType === 'A') {
+      targetPool = 'poolA';
+    } else if (selectedMatchForScoring.poolType === 'B') {
+      targetPool = 'poolB';
+    }
+    
+    updatedFixtures[targetPool] = updatedFixtures[targetPool].map(match => {
+      if (match.id === selectedMatchForScoring.matchId) {
+        const updatedEventMatches = match.eventMatches.map(eventMatch => {
+          if (eventMatch.eventId === selectedMatchForScoring.eventId) {
+            return { 
+              ...eventMatch, 
+              score: scoreData.score,
+              completed: scoreData.completed,
+              winner: scoreData.winner,
+              walkover: scoreData.walkover // Add walkover property
+            };
+          }
+          return eventMatch;
+        });
+        
+        return { ...match, eventMatches: updatedEventMatches };
       }
-      
-      updatedFixtures[targetPool] = updatedFixtures[targetPool].map(match => {
-        if (match.id === selectedMatchForScoring.matchId) {
-          const updatedEventMatches = match.eventMatches.map(eventMatch => {
-            if (eventMatch.eventId === selectedMatchForScoring.eventId) {
-              return { 
-                ...eventMatch, 
-                score: scoreData.score,
-                completed: scoreData.completed,
-                winner: scoreData.winner
-              };
-            }
-            return eventMatch;
-          });
-          
-          return { ...match, eventMatches: updatedEventMatches };
-        }
-        return match;
-      });
-      
-      // Save to localStorage without showing toast during auto-save
-      setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
-      
-      return updatedFixtures;
+      return match;
     });
     
-    // If we're scoring a semi-final match, update the final
-    if (selectedMatchForScoring.poolType === 'knockout' && 
-        (selectedMatchForScoring.matchId === 'sf-1' || selectedMatchForScoring.matchId === 'sf-2')) {
-      // Use setTimeout to ensure the fixtures state is updated first
-      setTimeout(() => updateFinalWithSemiFinalists(), 100);
-    }
-  };
+    // Save to localStorage without showing toast during auto-save
+    setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
+    
+    return updatedFixtures;
+  });
+  
+  // If we're scoring a semi-final match, update the final and third-place match
+  if (selectedMatchForScoring.poolType === 'knockout' && 
+      (selectedMatchForScoring.matchId === 'sf-1' || selectedMatchForScoring.matchId === 'sf-2')) {
+    // Use setTimeout to ensure the fixtures state is updated first
+    setTimeout(() => {
+      updateFinalWithSemiFinalists();
+      // updateThirdPlaceWithSemiFinalists();
+    }, 100);
+  }
+};
 
 // Add this function to calculate pool standings
 const calculatePoolStandings = (poolFixtures) => {
@@ -856,87 +1227,94 @@ const updateKnockoutFixtures = () => {
     toast.success('Knockout fixtures updated with pool winners!');
   };
 
+// ... existing code ...
+
 // Add this function to update the final match with semi-final winners
-const updateFinalWithSemiFinalists = () => {
-    // Get the semi-final matches
-    const sf1 = fixtures.knockout.find(match => match.id === 'sf-1');
-    const sf2 = fixtures.knockout.find(match => match.id === 'sf-2');
+const updateFinalWithSemiFinalists = (showToast = false) => {
+  // Get the semi-final matches
+  const sf1 = fixtures.knockout.find(match => match.id === 'sf-1');
+  const sf2 = fixtures.knockout.find(match => match.id === 'sf-2');
+  
+  if (!sf1 || !sf2) return;
+  
+  // Determine winners of each semi-final
+  let sf1Winner = null;
+  let sf2Winner = null;
+  
+  // For each semi-final, count completed event matches and determine the winner
+  if (sf1) {
+    let franchise1EventsWon = 0;
+    let franchise2EventsWon = 0;
     
-    if (!sf1 || !sf2) return;
-    
-    // Determine winners of each semi-final
-    let sf1Winner = null;
-    let sf2Winner = null;
-    
-    // For each semi-final, count completed event matches and determine the winner
-    if (sf1) {
-      let franchise1EventsWon = 0;
-      let franchise2EventsWon = 0;
-      
-      sf1.eventMatches.forEach(eventMatch => {
-        if (eventMatch.completed) {
-          if (eventMatch.winner === 0) { // Team 1 won
-            franchise1EventsWon++;
-          } else if (eventMatch.winner === 1) { // Team 2 won
-            franchise2EventsWon++;
-          }
+    sf1.eventMatches.forEach(eventMatch => {
+      if (eventMatch.completed) {
+        if (eventMatch.winner === 0) { // Team 1 won
+          franchise1EventsWon++;
+        } else if (eventMatch.winner === 1) { // Team 2 won
+          franchise2EventsWon++;
         }
-      });
-      
-      // Set the winner if there are completed matches
-      if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
-        sf1Winner = franchise1EventsWon > franchise2EventsWon ? sf1.franchise1 : sf1.franchise2;
       }
-    }
-    
-    if (sf2) {
-      let franchise1EventsWon = 0;
-      let franchise2EventsWon = 0;
-      
-      sf2.eventMatches.forEach(eventMatch => {
-        if (eventMatch.completed) {
-          if (eventMatch.winner === 0) { // Team 1 won
-            franchise1EventsWon++;
-          } else if (eventMatch.winner === 1) { // Team 2 won
-            franchise2EventsWon++;
-          }
-        }
-      });
-      
-      // Set the winner if there are completed matches
-      if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
-        sf2Winner = franchise1EventsWon > franchise2EventsWon ? sf2.franchise1 : sf2.franchise2;
-      }
-    }
-    
-    // Update the final match with the semi-final winners
-    setFixtures(prevFixtures => {
-      const updatedFixtures = { ...prevFixtures };
-      
-      updatedFixtures.knockout = updatedFixtures.knockout.map(match => {
-        if (match.id === 'final') {
-          return {
-            ...match,
-            franchise1: sf1Winner || { franchiseName: 'Winner SF1' },
-            franchise2: sf2Winner || { franchiseName: 'Winner SF2' },
-            // Store the source information for persistence
-            poolData: {
-              franchise1Source: 'sf1Winner',
-              franchise2Source: 'sf2Winner'
-            }
-          };
-        }
-        return match;
-      });
-      
-      return updatedFixtures;
     });
     
-    // Save updated fixtures to localStorage
-    setTimeout(() => saveFixturesToLocalStorage(), 0);
+    // Set the winner if there are completed matches
+    if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+      sf1Winner = franchise1EventsWon > franchise2EventsWon ? sf1.franchise1 : sf1.franchise2;
+    }
+  }
+  
+  if (sf2) {
+    let franchise1EventsWon = 0;
+    let franchise2EventsWon = 0;
     
+    sf2.eventMatches.forEach(eventMatch => {
+      if (eventMatch.completed) {
+        if (eventMatch.winner === 0) { // Team 1 won
+          franchise1EventsWon++;
+        } else if (eventMatch.winner === 1) { // Team 2 won
+          franchise2EventsWon++;
+        }
+      }
+    });
+    
+    // Set the winner if there are completed matches
+    if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+      sf2Winner = franchise1EventsWon > franchise2EventsWon ? sf2.franchise1 : sf2.franchise2;
+    }
+  }
+  
+  // Update the final with the semi-final winners
+  setFixtures(prevFixtures => {
+    const updatedFixtures = { ...prevFixtures };
+    
+    updatedFixtures.knockout = updatedFixtures.knockout.map(match => {
+      if (match.id === 'final') {
+        return {
+          ...match,
+          franchise1: sf1Winner || { franchiseName: 'Winner SF1' },
+          franchise2: sf2Winner || { franchiseName: 'Winner SF2' },
+          // Store the source information for persistence
+          poolData: {
+            franchise1Source: 'sf1Winner',
+            franchise2Source: 'sf2Winner'
+          }
+        };
+      }
+      return match;
+    });
+    
+    return updatedFixtures;
+  });
+  
+  // Also update the third place match with semi-final losers
+  updateThirdPlaceWithSemiFinalists(showToast);
+  
+  // Save updated fixtures to localStorage
+  setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
+  
+  if (showToast) {
     toast.success('Final updated with semi-final winners!');
-  };
+  }
+};
 
 
   // Process events to combine 30+ and 35+ men's player events
@@ -1008,6 +1386,18 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
         score: '0-0',
         eventMatches: processEventMatches(events) // Changed to use processEventMatches
       },
+      // Third Place Match
+      {
+        id: 'third-place',
+        round: 'Third Place',
+        franchise1: { franchiseName: 'Loser SF1' }, // Placeholder
+        franchise2: { franchiseName: 'Loser SF2' }, // Placeholder
+        date: new Date().toISOString().split('T')[0],
+        time: '09:30 AM',
+        court: 1,
+        score: '0-0',
+        eventMatches: processEventMatches(events) // Changed to use processEventMatches
+      },
       // Final
       {
         id: 'final',
@@ -1024,6 +1414,97 @@ const processEventMatches = (allEvents, franchise1, franchise2) => {
     
     return knockoutFixtures;
   };
+
+// ... existing code ...
+
+// Add this function to update the third place match with semi-final losers
+const updateThirdPlaceWithSemiFinalists = (showToast = false) => {
+  // Get the semi-final matches
+  const sf1 = fixtures.knockout.find(match => match.id === 'sf-1');
+  const sf2 = fixtures.knockout.find(match => match.id === 'sf-2');
+
+  console.log('Updating third place match');
+  console.log('Semi-final 1:', sf1);
+  console.log('Semi-final 2:', sf2);
+  
+  if (!sf1 || !sf2) return;
+  console.log('Semi-finals not found');
+  
+  // Determine losers of each semi-final
+  let sf1Loser = null;
+  let sf2Loser = null;
+  
+  // For each semi-final, count completed event matches and determine the loser
+  if (sf1) {
+    let franchise1EventsWon = 0;
+    let franchise2EventsWon = 0;
+    
+    sf1.eventMatches.forEach(eventMatch => {
+      if (eventMatch.completed) {
+        if (eventMatch.winner === 0) { // Team 1 won
+          franchise1EventsWon++;
+        } else if (eventMatch.winner === 1) { // Team 2 won
+          franchise2EventsWon++;
+        }
+      }
+    });
+    
+    // Set the loser if there are completed matches
+    if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+      sf1Loser = franchise1EventsWon > franchise2EventsWon ? sf1.franchise2 : sf1.franchise1;
+    }
+  }
+  
+  if (sf2) {
+    let franchise1EventsWon = 0;
+    let franchise2EventsWon = 0;
+    
+    sf2.eventMatches.forEach(eventMatch => {
+      if (eventMatch.completed) {
+        if (eventMatch.winner === 0) { // Team 1 won
+          franchise1EventsWon++;
+        } else if (eventMatch.winner === 1) { // Team 2 won
+          franchise2EventsWon++;
+        }
+      }
+    });
+    
+    // Set the loser if there are completed matches
+    if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+      sf2Loser = franchise1EventsWon > franchise2EventsWon ? sf2.franchise2 : sf2.franchise1;
+    }
+  }
+  
+  // Update the third-place match with the semi-final losers
+  setFixtures(prevFixtures => {
+    const updatedFixtures = { ...prevFixtures };
+    
+    updatedFixtures.knockout = updatedFixtures.knockout.map(match => {
+      if (match.id === 'third-place') {
+        return {
+          ...match,
+          franchise1: sf1Loser || { franchiseName: 'Loser SF1' },
+          franchise2: sf2Loser || { franchiseName: 'Loser SF2' },
+          // Store the source information for persistence
+          poolData: {
+            franchise1Source: 'sf1Loser',
+            franchise2Source: 'sf2Loser'
+          }
+        };
+      }
+      return match;
+    });
+    
+    return updatedFixtures;
+  });
+  
+  // Save updated fixtures to localStorage
+  setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
+  
+  if (showToast) {
+    toast.success('Third place match updated with semi-final losers!');
+  }
+};
 
   // Generate all fixtures
   const generateFixtures = () => {
@@ -1211,106 +1692,114 @@ const handleCourtChange = (matchId, poolType, courtNumber) => {
 
 // Get team name by ID with support for doubles teams and combined 30+/35+ teams
 const getTeamName = (teamId, matchContext = null) => {
-    const team = bookings.find(booking => booking._id === teamId);
-    if (!team) return 'Not assigned';
+  const team = bookings.find(booking => booking._id === teamId);
+  if (!team) return 'Not assigned';
+  
+  // Check if this team is part of a multi-team selection
+  if (matchContext && matchContext.matchId) {
+    const franchiseSide = matchContext.team1 === teamId ? 1 : 2;
+    const key = `${matchContext.matchId}-${matchContext.eventId}-${franchiseSide}`;
+    const multiSelection = multiTeamSelections[key];
     
-    // For the combined 30+/35+ men's event, show both player names
-    if (matchContext && matchContext.eventName === getCombinedEventName()) {
+    if (multiSelection && multiSelection.length > 1) {
+      const team1 = bookings.find(booking => booking._id === multiSelection[0]);
+      const team2 = bookings.find(booking => booking._id === multiSelection[1]);
+      
+      if (team1 && team2) {
+        return `${team1.playerName} and ${team2.playerName}`;
+      }
+    }
+  }
+  
+  // For the combined 30+/35+ men's event, show both player names
+  if (matchContext && matchContext.eventName === getCombinedEventName()) {
+    // Find the franchise this team belongs to
+    const franchiseId = team.franchise;
+    
+    // Get all 30+ and 35+ teams from this franchise
+    const franchiseTeamsIn30And35Events = bookings.filter(booking => 
+      booking.franchise === franchiseId && 
+      booking.event && events.some(e => 
+        e._id === booking.event && 
+        (e.name.toLowerCase().includes("30+ men's player") || 
+         e.name.toLowerCase().includes("35+ men's player"))
+      ) &&
+      booking._id !== teamId
+    );
+    
+    // If there's another team from the same franchise in these events
+    if (franchiseTeamsIn30And35Events.length > 0) {
+      const partnerTeam = franchiseTeamsIn30And35Events[0];
+      return `${team.playerName} and ${partnerTeam.playerName}`;
+    }
+  }
+
+  // For 40+ men's players event, show both player names
+  if (matchContext && matchContext.eventId && is40MensEvent(matchContext.eventId)) {
       // Find the franchise this team belongs to
       const franchiseId = team.franchise;
       
-      // Get all 30+ and 35+ teams from this franchise
-      const franchiseTeamsIn30And35Events = bookings.filter(booking => 
+      // Get all 40+ men's players teams from this franchise
+      const franchiseTeamsIn40MensEvent = bookings.filter(booking => 
         booking.franchise === franchiseId && 
         booking.event && events.some(e => 
           e._id === booking.event && 
-          (e.name.toLowerCase().includes("30+ men's player") || 
-           e.name.toLowerCase().includes("35+ men's player"))
+          e.name.toLowerCase().includes("40+ men's players")
         ) &&
         booking._id !== teamId
       );
       
-      // If there's another team from the same franchise in these events
-      if (franchiseTeamsIn30And35Events.length > 0) {
-        const partnerTeam = franchiseTeamsIn30And35Events[0];
-        return `${team.playerName} and ${partnerTeam.playerName}`;
-      }
-    }
-
-        // For 40+ men's players event, show both player names
-        if (matchContext && matchContext.eventId && is40MensEvent(matchContext.eventId)) {
-            // Find the franchise this team belongs to
-            const franchiseId = team.franchise;
-            
-            // Get all 40+ men's players teams from this franchise
-            const franchiseTeamsIn40MensEvent = bookings.filter(booking => 
-              booking.franchise === franchiseId && 
-              booking.event && events.some(e => 
-                e._id === booking.event && 
-                e.name.toLowerCase().includes("40+ men's players")
-              ) &&
-              booking._id !== teamId
-            );
-            
-            // If there's another team from the same franchise in this event
-            if (franchiseTeamsIn40MensEvent.length > 0) {
-              const partnerTeam = franchiseTeamsIn40MensEvent[0];
-              return `${team.playerName} and ${partnerTeam.playerName}`;
-            }
-          }
-    
-    // For doubles events, we need to show both player names
-    const event = events.find(e => e._id === team.event);
-    if (event && isDoublesEvent(event._id) && matchContext) {
-      // Find the franchise this team belongs to
-      const franchiseId = team.franchise;
-      
-      // Get all teams from this franchise for this event
-      const franchiseTeamsInEvent = bookings.filter(booking => 
-        booking.franchise === franchiseId && 
-        booking.event === team.event && 
-        booking._id !== teamId
-      );
-      
       // If there's another team from the same franchise in this event
-      if (franchiseTeamsInEvent.length > 0) {
-        const partnerTeam = franchiseTeamsInEvent[0];
+      if (franchiseTeamsIn40MensEvent.length > 0) {
+        const partnerTeam = franchiseTeamsIn40MensEvent[0];
         return `${team.playerName} and ${partnerTeam.playerName}`;
       }
-    }
+  }
+  
+  // For doubles events, we need to show both player names
+  const event = events.find(e => e._id === team.event);
+  if (event && isDoublesEvent(event._id) && matchContext) {
+    // Find the franchise this team belongs to
+    const franchiseId = team.franchise;
     
-    return team.playerName;
-  };
+    // Get all teams from this franchise for this event
+    const franchiseTeamsInEvent = bookings.filter(booking => 
+      booking.franchise === franchiseId && 
+      booking.event === team.event && 
+      booking._id !== teamId
+    );
+    
+    // If there's another team from the same franchise in this event
+    if (franchiseTeamsInEvent.length > 0) {
+      const partnerTeam = franchiseTeamsInEvent[0];
+      return `${team.playerName} and ${partnerTeam.playerName}`;
+    }
+  }
+  
+  return team.playerName;
+};
 
 // Save fixtures to localStorage
 const saveFixturesToLocalStorage = (showToast = true) => {
-    try {
-      const fixturesData = {
-        poolA: fixtures.poolA,
-        poolB: fixtures.poolB,
-        knockout: fixtures.knockout
-      };
-      localStorage.setItem(`fixtures_${tournamentId}`, JSON.stringify(fixturesData));
-      
-      // Save scoring formats
-      localStorage.setItem(`scoringFormats_${tournamentId}`, JSON.stringify(scoringFormats));
-      
-      // Don't overwrite declared results here, as they're saved directly in handleDeclareResult
-      // Instead, just read the current value to ensure we're not losing data
-      const currentDeclaredResults = localStorage.getItem(`declaredResults_${tournamentId}`);
-      if (!currentDeclaredResults) {
-        // Only save if it doesn't exist yet
-        localStorage.setItem(`declaredResults_${tournamentId}`, JSON.stringify(declaredResults));
-      }
-      
-      if (showToast) {
-        toast.success('Fixtures saved successfully!');
-      }
-    } catch (error) {
-      console.error('Error saving fixtures to localStorage:', error);
-      toast.error('Failed to save fixtures');
+  try {
+    // Save fixtures
+    localStorage.setItem(`fixtures_${tournamentId}`, JSON.stringify(fixtures));
+    
+    // Save declared results
+    localStorage.setItem(`declaredResults_${tournamentId}`, JSON.stringify(declaredResults));
+    localStorage.setItem(`declaredResultsByPool_${tournamentId}`, JSON.stringify(declaredResultsByPool));
+    
+    // Save declared match IDs
+    localStorage.setItem(`declaredMatchIds_${tournamentId}`, JSON.stringify(declaredMatchIds));
+    
+    if (showToast) {
+      toast.success('Fixtures saved successfully!');
     }
-  };
+  } catch (error) {
+    console.error('Error saving fixtures:', error);
+    toast.error('Failed to save fixtures');
+  }
+};
 
   // Add this useEffect after your other useEffect hooks
   useEffect(() => {
@@ -1336,121 +1825,131 @@ useEffect(() => {
 
 // Modify the loadFixturesFromLocalStorage function
 const loadFixturesFromLocalStorage = () => {
-    try {
-      const savedFixtures = localStorage.getItem(`fixtures_${tournamentId}`);
-      const savedScoringFormats = localStorage.getItem(`scoringFormats_${tournamentId}`);
-      const savedDeclaredResults = localStorage.getItem(`declaredResults_${tournamentId}`);
-      
-      if (savedScoringFormats) {
-        setScoringFormats(JSON.parse(savedScoringFormats));
-      }
+  try {
+    const savedFixtures = localStorage.getItem(`fixtures_${tournamentId}`);
+    const savedScoringFormats = localStorage.getItem(`scoringFormats_${tournamentId}`);
+    const savedDeclaredResults = localStorage.getItem(`declaredResults_${tournamentId}`);
+    
+    if (savedScoringFormats) {
+      setScoringFormats(JSON.parse(savedScoringFormats));
+    }
 
-      if (savedDeclaredResults) {
-        // Parse the saved results and ensure it's properly formatted
-        const parsedResults = JSON.parse(savedDeclaredResults);
-        setDeclaredResults(parsedResults);
-      }
+    if (savedDeclaredResults) {
+      // Parse the saved results and ensure it's properly formatted
+      const parsedResults = JSON.parse(savedDeclaredResults);
+      setDeclaredResults(parsedResults);
+    }
+    
+    if (savedFixtures) {
+      const parsedFixtures = JSON.parse(savedFixtures);
       
-      if (savedFixtures) {
-        const parsedFixtures = JSON.parse(savedFixtures);
+      // If knockout fixtures exist and have poolData, restore the actual franchises
+      if (parsedFixtures.knockout && parsedFixtures.knockout.length > 0) {
+        // First, calculate pool standings
+        const poolAStandings = calculatePoolStandings(parsedFixtures.poolA);
+        const poolBStandings = calculatePoolStandings(parsedFixtures.poolB);
         
-        // If knockout fixtures exist and have poolData, restore the actual franchises
-        if (parsedFixtures.knockout && parsedFixtures.knockout.length > 0) {
-          // First, calculate pool standings
-          const poolAStandings = calculatePoolStandings(parsedFixtures.poolA);
-          const poolBStandings = calculatePoolStandings(parsedFixtures.poolB);
+        // Get winner and runner-up from each pool
+        const poolAWinner = poolAStandings.length > 0 ? poolAStandings[0].franchise : null;
+        const poolARunner = poolAStandings.length > 1 ? poolAStandings[1].franchise : null;
+        const poolBWinner = poolBStandings.length > 0 ? poolBStandings[0].franchise : null;
+        const poolBRunner = poolBStandings.length > 1 ? poolBStandings[1].franchise : null;
+        
+        // Get semi-final matches
+        const sf1 = parsedFixtures.knockout.find(match => match.id === 'sf-1');
+        const sf2 = parsedFixtures.knockout.find(match => match.id === 'sf-2');
+        
+        // Determine semi-final winners
+        let sf1Winner = null;
+        let sf2Winner = null;
+        
+        // Determine semi-final losers for third-place match
+        let sf1Loser = null;
+        let sf2Loser = null;
+        
+        if (sf1) {
+          let franchise1EventsWon = 0;
+          let franchise2EventsWon = 0;
           
-          // Get winner and runner-up from each pool
-          const poolAWinner = poolAStandings.length > 0 ? poolAStandings[0].franchise : null;
-          const poolARunner = poolAStandings.length > 1 ? poolAStandings[1].franchise : null;
-          const poolBWinner = poolBStandings.length > 0 ? poolBStandings[0].franchise : null;
-          const poolBRunner = poolBStandings.length > 1 ? poolBStandings[1].franchise : null;
-          
-          // Get semi-final matches
-          const sf1 = parsedFixtures.knockout.find(match => match.id === 'sf-1');
-          const sf2 = parsedFixtures.knockout.find(match => match.id === 'sf-2');
-          
-          // Determine semi-final winners
-          let sf1Winner = null;
-          let sf2Winner = null;
-          
-          if (sf1) {
-            let franchise1EventsWon = 0;
-            let franchise2EventsWon = 0;
-            
-            sf1.eventMatches.forEach(eventMatch => {
-              if (eventMatch.completed) {
-                if (eventMatch.winner === 0) { // Team 1 won
-                  franchise1EventsWon++;
-                } else if (eventMatch.winner === 1) { // Team 2 won
-                  franchise2EventsWon++;
-                }
+          sf1.eventMatches.forEach(eventMatch => {
+            if (eventMatch.completed) {
+              if (eventMatch.winner === 0) { // Team 1 won
+                franchise1EventsWon++;
+              } else if (eventMatch.winner === 1) { // Team 2 won
+                franchise2EventsWon++;
               }
-            });
-            
-            if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
-              sf1Winner = franchise1EventsWon > franchise2EventsWon ? sf1.franchise1 : sf1.franchise2;
             }
-          }
-          
-          if (sf2) {
-            let franchise1EventsWon = 0;
-            let franchise2EventsWon = 0;
-            
-            sf2.eventMatches.forEach(eventMatch => {
-              if (eventMatch.completed) {
-                if (eventMatch.winner === 0) { // Team 1 won
-                  franchise1EventsWon++;
-                } else if (eventMatch.winner === 1) { // Team 2 won
-                  franchise2EventsWon++;
-                }
-              }
-            });
-            
-            if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
-              sf2Winner = franchise1EventsWon > franchise2EventsWon ? sf2.franchise1 : sf2.franchise2;
-            }
-          }
-          
-          // Update knockout fixtures with actual franchises
-          parsedFixtures.knockout = parsedFixtures.knockout.map(match => {
-            if (match.poolData) {
-              const updatedMatch = { ...match };
-              
-              // Restore franchise1 based on poolData
-              if (match.poolData.franchise1Source === 'poolAWinner' && poolAWinner) {
-                updatedMatch.franchise1 = poolAWinner;
-              } else if (match.poolData.franchise1Source === 'poolBWinner' && poolBWinner) {
-                updatedMatch.franchise1 = poolBWinner;
-              } else if (match.poolData.franchise1Source === 'sf1Winner' && sf1Winner) {
-                updatedMatch.franchise1 = sf1Winner;
-              }
-              
-              // Restore franchise2 based on poolData
-              if (match.poolData.franchise2Source === 'poolARunner' && poolARunner) {
-                updatedMatch.franchise2 = poolARunner;
-              } else if (match.poolData.franchise2Source === 'poolBRunner' && poolBRunner) {
-                updatedMatch.franchise2 = poolBRunner;
-              } else if (match.poolData.franchise2Source === 'sf2Winner' && sf2Winner) {
-                updatedMatch.franchise2 = sf2Winner;
-              }
-              
-              return updatedMatch;
-            }
-            return match;
           });
+          
+          if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+            sf1Winner = franchise1EventsWon > franchise2EventsWon ? sf1.franchise1 : sf1.franchise2;
+            sf1Loser = franchise1EventsWon > franchise2EventsWon ? sf1.franchise2 : sf1.franchise1;
+          }
         }
         
-        setFixtures(parsedFixtures);
-        setShowFixtures(true);
-        return true;
+        if (sf2) {
+          let franchise1EventsWon = 0;
+          let franchise2EventsWon = 0;
+          
+          sf2.eventMatches.forEach(eventMatch => {
+            if (eventMatch.completed) {
+              if (eventMatch.winner === 0) { // Team 1 won
+                franchise1EventsWon++;
+              } else if (eventMatch.winner === 1) { // Team 2 won
+                franchise2EventsWon++;
+              }
+            }
+          });
+          
+          if (franchise1EventsWon > 0 || franchise2EventsWon > 0) {
+            sf2Winner = franchise1EventsWon > franchise2EventsWon ? sf2.franchise1 : sf2.franchise2;
+            sf2Loser = franchise1EventsWon > franchise2EventsWon ? sf2.franchise2 : sf2.franchise1;
+          }
+        }
+        
+        // Update knockout fixtures with actual franchises
+        parsedFixtures.knockout = parsedFixtures.knockout.map(match => {
+          if (match.poolData) {
+            const updatedMatch = { ...match };
+            
+            // Restore franchise1 based on poolData
+            if (match.poolData.franchise1Source === 'poolAWinner' && poolAWinner) {
+              updatedMatch.franchise1 = poolAWinner;
+            } else if (match.poolData.franchise1Source === 'poolBWinner' && poolBWinner) {
+              updatedMatch.franchise1 = poolBWinner;
+            } else if (match.poolData.franchise1Source === 'sf1Winner' && sf1Winner) {
+              updatedMatch.franchise1 = sf1Winner;
+            } else if (match.poolData.franchise1Source === 'sf1Loser' && sf1Loser) {
+              updatedMatch.franchise1 = sf1Loser;
+            }
+            
+            // Restore franchise2 based on poolData
+            if (match.poolData.franchise2Source === 'poolARunner' && poolARunner) {
+              updatedMatch.franchise2 = poolARunner;
+            } else if (match.poolData.franchise2Source === 'poolBRunner' && poolBRunner) {
+              updatedMatch.franchise2 = poolBRunner;
+            } else if (match.poolData.franchise2Source === 'sf2Winner' && sf2Winner) {
+              updatedMatch.franchise2 = sf2Winner;
+            } else if (match.poolData.franchise2Source === 'sf2Loser' && sf2Loser) {
+              updatedMatch.franchise2 = sf2Loser;
+            }
+            
+            return updatedMatch;
+          }
+          return match;
+        });
       }
-      return false;
-    } catch (error) {
-      console.error('Error loading fixtures from localStorage:', error);
-      return false;
+      
+      setFixtures(parsedFixtures);
+      setShowFixtures(true);
+      return true;
     }
-  };
+    return false;
+  } catch (error) {
+    console.error('Error loading fixtures from localStorage:', error);
+    return false;
+  }
+};
 
 
   return (
@@ -1623,45 +2122,56 @@ const loadFixturesFromLocalStorage = () => {
     <option value="30-1">30 points - single set</option>
   </select>
 </div>
-              {/* Add Update Knockout button */}
+{/* Add Update Knockout button */}
 {selectedPool === 'knockout' && (
-  <button
-    onClick={updateKnockoutFixtures}
-    className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors ml-3"
-  >
-    Update With Pool Winners
-  </button>
+  <div className="flex space-x-2">
+    <button
+      onClick={updateKnockoutFixtures}
+      className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors"
+    >
+      Update With Pool Winners
+    </button>
+  </div>
 )}
       </div>
     </div>
               
               <div className="space-y-4">
-              {selectedPool === 'A' && fixtures.poolA.map(match => (
+              {selectedPool === 'A' && fixtures.poolA
+  .filter(match => !declaredMatchIds.includes(match.id)).map(match => (
   <div key={`${selectedPool}-${match.id}`} className="bg-gray-700 rounded-md overflow-hidden">
     <div className="p-3 bg-gray-600 flex justify-between items-center">
       <div>
-      <span className="text-white font-medium">
-  {match.franchise1.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
-<span className="text-gray-300 mx-2">vs</span>
-<span className="text-white font-medium">
-  {match.franchise2.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
+        <span className="text-white font-medium">
+          {match.franchise1.franchiseName}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
+            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+          )}
+          {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+            <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+          )}
+        </span>
+        <span className="text-gray-300 mx-2">vs</span>
+        <span className="text-white font-medium">
+          {match.franchise2.franchiseName}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
+            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+          )}
+          {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+            <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+          )}
+        </span>
       </div>
       
       <div className="flex items-center space-x-3">
+        {/* Add Set Timer button */}
+        <button
+  onClick={() => handleOpenTimerModal(match, 'knockout')}
+  className="bg-purple-600 hover:bg-purple-700 text-white text-xs py-1 px-2 rounded transition-colors"
+>
+  Schedule Time
+</button>
+        
         <div className="flex items-center">
           <label htmlFor={`court-${match.id}`} className="mr-2 text-white text-sm">Court:</label>
           <input
@@ -1689,6 +2199,18 @@ const loadFixturesFromLocalStorage = () => {
         </button>
       </div>
     </div>
+    
+{/* Display timer information if available */}
+{formatTimerDisplay(match.id) && (
+  <div className="px-3 py-2 bg-gray-800 border-t border-gray-600">
+    <div className="flex justify-center text-sm">
+      <div>
+        <span className="text-gray-400">Scheduled Time: </span>
+        <span className="text-white font-medium">{formatTimerDisplay(match.id).scheduledTime}</span>
+      </div>
+    </div>
+  </div>
+)}
                     
                     {expandedMatch === match.id && (
                       <div className="p-3 border-t border-gray-600">
@@ -1700,44 +2222,152 @@ const loadFixturesFromLocalStorage = () => {
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team1 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'A', eventMatch.eventId, 1, e.target.value)}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {getFranchiseTeamsByEvent(match.franchise1._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team2 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'A', eventMatch.eventId, 2, e.target.value)}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {getFranchiseTeamsByEvent(match.franchise2._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise1.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise1._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+  
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise2.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise2._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+</div>
                               
                               <div className="mt-2">
   <div className="flex justify-between items-center">
     <span className="text-white text-sm">
-      {eventMatch.team1 ? getTeamName(eventMatch.team1, eventMatch) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, eventMatch) : 'Not assigned'}
-    </span>
+    {eventMatch.team1 ? getTeamName(eventMatch.team1, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'}
+</span>
     {eventMatch.team1 && eventMatch.team2 && (
       <button
         onClick={() => handleOpenScoreModal(match, eventMatch)}
@@ -1748,10 +2378,17 @@ const loadFixturesFromLocalStorage = () => {
     )}
   </div>
   {eventMatch.completed && (
-    <div className="mt-1 text-xs text-green-400 text-center">
-      Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}
-    </div>
-  )}
+  <div className="mt-1 text-xs text-green-400 text-center">
+    {eventMatch.walkover ? (
+      <span className="text-green-400"> {/* Change from text-red-400 to text-green-400 */}
+        Walkover: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)} won, 
+        {eventMatch.winner === 0 ? getTeamName(eventMatch.team2, eventMatch) : getTeamName(eventMatch.team1, eventMatch)} lost
+      </span>
+    ) : (
+      <>Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}</>
+    )}
+  </div>
+)}
 </div>
                             </div>
                           ))}
@@ -1761,32 +2398,41 @@ const loadFixturesFromLocalStorage = () => {
                   </div>
                 ))}
                 
-                {selectedPool === 'B' && fixtures.poolB.map(match => (
+                {selectedPool === 'B' && fixtures.poolB
+  .filter(match => !declaredMatchIds.includes(match.id)).map(match => (
   <div key={`${selectedPool}-${match.id}`} className="bg-gray-700 rounded-md overflow-hidden">
     <div className="p-3 bg-gray-600 flex justify-between items-center">
       <div>
-      <span className="text-white font-medium">
-  {match.franchise1.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
-<span className="text-gray-300 mx-2">vs</span>
-<span className="text-white font-medium">
-  {match.franchise2.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
+        <span className="text-white font-medium">
+          {match.franchise1.franchiseName}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
+            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+          )}
+          {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+            <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+          )}
+        </span>
+        <span className="text-gray-300 mx-2">vs</span>
+        <span className="text-white font-medium">
+          {match.franchise2.franchiseName}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
+            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+          )}
+          {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+            <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+          )}
+        </span>
       </div>
       
       <div className="flex items-center space-x-3">
+        {/* Add Set Timer button */}
+        <button
+  onClick={() => handleOpenTimerModal(match, 'knockout')}
+  className="bg-purple-600 hover:bg-purple-700 text-white text-xs py-1 px-2 rounded transition-colors"
+>
+  Schedule Time
+</button>
+        
         <div className="flex items-center">
           <label htmlFor={`court-${match.id}`} className="mr-2 text-white text-sm">Court:</label>
           <input
@@ -1814,6 +2460,18 @@ const loadFixturesFromLocalStorage = () => {
         </button>
       </div>
     </div>
+    
+{/* Display timer information if available */}
+{formatTimerDisplay(match.id) && (
+  <div className="px-3 py-2 bg-gray-800 border-t border-gray-600">
+    <div className="flex justify-center text-sm">
+      <div>
+        <span className="text-gray-400">Scheduled Time: </span>
+        <span className="text-white font-medium">{formatTimerDisplay(match.id).scheduledTime}</span>
+      </div>
+    </div>
+  </div>
+)}
                     
                     {expandedMatch === match.id && (
                       <div className="p-3 border-t border-gray-600">
@@ -1825,44 +2483,152 @@ const loadFixturesFromLocalStorage = () => {
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team1 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'B', eventMatch.eventId, 1, e.target.value)}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {getFranchiseTeamsByEvent(match.franchise1._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team2 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'B', eventMatch.eventId, 2, e.target.value)}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {getFranchiseTeamsByEvent(match.franchise2._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise1.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise1._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+  
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise2.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise2._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+</div>
                               
                               <div className="mt-2">
   <div className="flex justify-between items-center">
     <span className="text-white text-sm">
-      {eventMatch.team1 ? getTeamName(eventMatch.team1, eventMatch) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, eventMatch) : 'Not assigned'}
-    </span>
+    {eventMatch.team1 ? getTeamName(eventMatch.team1, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'}
+</span>
     {eventMatch.team1 && eventMatch.team2 && (
       <button
         onClick={() => handleOpenScoreModal(match, eventMatch)}
@@ -1873,10 +2639,17 @@ const loadFixturesFromLocalStorage = () => {
     )}
   </div>
   {eventMatch.completed && (
-    <div className="mt-1 text-xs text-green-400 text-center">
-      Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}
-    </div>
-  )}
+  <div className="mt-1 text-xs text-green-400 text-center">
+    {eventMatch.walkover ? (
+      <span className="text-green-400"> {/* Change from text-red-400 to text-green-400 */}
+        Walkover: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)} won, 
+        {eventMatch.winner === 0 ? getTeamName(eventMatch.team2, eventMatch) : getTeamName(eventMatch.team1, eventMatch)} lost
+      </span>
+    ) : (
+      <>Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}</>
+    )}
+  </div>
+)}
 </div>
                             </div>
                           ))}
@@ -1886,60 +2659,107 @@ const loadFixturesFromLocalStorage = () => {
                   </div>
                 ))}
                 
-                {selectedPool === 'knockout' && fixtures.knockout.map(match => (
-  <div key={match.id} className="bg-gray-700 rounded-md overflow-hidden">
-    <div className="p-3 bg-gray-600 flex justify-between items-center">
-      <div>
-        <span className="text-red-500 font-medium mr-2">{match.round}:</span>
-        <span className="text-white font-medium">
-  {match.franchise1.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
-<span className="text-gray-300 mx-2">vs</span>
-<span className="text-white font-medium">
-  {match.franchise2.franchiseName}
-  {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-    <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-  )}
-  {declaredResultsByPool[selectedPool][match.id]?.isTie && (
-    <span className="ml-1 text-blue-400" title="Tie">🤝</span>
-  )}
-</span>
-      </div>
-      
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center">
-          <label htmlFor={`court-${match.id}`} className="mr-2 text-white text-sm">Court:</label>
-          <input
-            id={`court-${match.id}`}
-            type="number"
-            min="1"
-            value={match.court}
-            onChange={(e) => handleCourtChange(match.id, 'knockout', parseInt(e.target.value))}
-            className="w-16 bg-gray-800 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-          />
+                {selectedPool === 'knockout' && fixtures.knockout
+  .filter(match => !declaredMatchIds.includes(match.id))
+  .sort((a, b) => {
+    const order = {
+      'Semi Final': 1,
+      'Third Place': 2,
+      'Final': 3
+    };
+    return order[a.round] - order[b.round];
+  })
+  .map(match => (
+    <div key={match.id} className="bg-gray-700 rounded-md overflow-hidden">
+      <div className="p-3 bg-gray-600 flex justify-between items-center">
+        <div>
+          <span className="text-red-500 font-medium mr-2">{match.round}:</span>
+          <span className="text-white font-medium">
+            {match.franchise1.franchiseName}
+            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
+              <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+            )}
+            {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+              <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+            )}
+          </span>
+          <span className="text-gray-300 mx-2">vs</span>
+          <span className="text-white font-medium">
+            {match.franchise2.franchiseName}
+            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
+              <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+            )}
+            {declaredResultsByPool[selectedPool][match.id]?.isTie && (
+              <span className="ml-1 text-blue-400" title="Tie">🤝</span>
+            )}
+          </span>
         </div>
         
-        <button
-          onClick={() => handleDeclareResult(match.id, 'knockout')}
-          className="bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded transition-colors"
-        >
-          Declare Result
-        </button>
-        
-        <button
-          onClick={() => toggleExpandMatch(match.id)}
-          className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors"
-        >
-          {expandedMatch === match.id ? 'Hide Details' : 'See All'}
-        </button>
+        <div className="flex items-center space-x-3">
+            {/* Add Manual Franchise Selection buttons only for Semi Final matches */}
+  {match.round === 'Semi Final' && (
+    <>
+      <button
+        onClick={() => handleOpenFranchiseSelection(match, 1)}
+        className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded transition-colors"
+      >
+        Team 1
+      </button>
+      <button
+        onClick={() => handleOpenFranchiseSelection(match, 2)}
+        className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded transition-colors"
+      >
+        Team 2
+      </button>
+    </>
+  )}
+          {/* Add Set Timer button */}
+          <button
+  onClick={() => handleOpenTimerModal(match, 'knockout')}
+  className="bg-purple-600 hover:bg-purple-700 text-white text-xs py-1 px-2 rounded transition-colors"
+>
+  Schedule Time
+</button>
+          
+          <div className="flex items-center">
+            <label htmlFor={`court-${match.id}`} className="mr-2 text-white text-sm">Court:</label>
+            <input
+              id={`court-${match.id}`}
+              type="number"
+              min="1"
+              value={match.court}
+              onChange={(e) => handleCourtChange(match.id, 'knockout', parseInt(e.target.value))}
+              className="w-16 bg-gray-800 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+          
+          <button
+            onClick={() => handleDeclareResult(match.id, 'knockout')}
+            className="bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded transition-colors"
+          >
+            Declare Result
+          </button>
+          
+          <button
+            onClick={() => toggleExpandMatch(match.id)}
+            className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors"
+          >
+            {expandedMatch === match.id ? 'Hide Details' : 'See All'}
+          </button>
+        </div>
+      </div>
+      
+      {/* Display timer information if available */}
+{formatTimerDisplay(match.id) && (
+  <div className="px-3 py-2 bg-gray-800 border-t border-gray-600">
+    <div className="flex justify-center text-sm">
+      <div>
+        <span className="text-gray-400">Scheduled Time: </span>
+        <span className="text-white font-medium">{formatTimerDisplay(match.id).scheduledTime}</span>
       </div>
     </div>
+  </div>
+)}
                     
                     {expandedMatch === match.id && (
                       <div className="p-3 border-t border-gray-600">
@@ -1951,46 +2771,152 @@ const loadFixturesFromLocalStorage = () => {
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team1 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'knockout', eventMatch.eventId, 1, e.target.value)}
-                                    disabled={match.franchise1.franchiseName.includes('Winner')}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {!match.franchise1.franchiseName.includes('Winner') && getFranchiseTeamsByEvent(match.franchise1._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
-                                  <select
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    value={eventMatch.team2 || ''}
-                                    onChange={(e) => handleTeamAssignment(match.id, 'knockout', eventMatch.eventId, 2, e.target.value)}
-                                    disabled={match.franchise2.franchiseName.includes('Winner')}
-                                  >
-                                    <option value="">Select Team</option>
-                                    {!match.franchise2.franchiseName.includes('Winner') && getFranchiseTeamsByEvent(match.franchise2._id, eventMatch.eventId).map(team => (
-                                      <option key={team._id} value={team._id}>
-                                        {team.playerName} ({getEventName(team.event)})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise1.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise1.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise1._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+  
+  <div>
+    <label className="block text-gray-400 text-xs mb-1">{match.franchise2.franchiseName} Team</label>
+    <div className="relative">
+      <button
+        type="button"
+        className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
+        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+      >
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+        </svg>
+      </button>
+      
+      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+        <h3 className="text-xl font-medium text-white">
+          Select {match.franchise2.franchiseName} Team
+        </h3>
+        <button
+          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          className="text-gray-400 hover:text-white"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="p-6">
+        <div className="max-h-60 overflow-auto mb-4">
+          {getFranchiseTeams(match.franchise2._id).map(team => (
+            <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
+              <input
+                type="checkbox"
+                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                className="mr-2"
+              />
+              <label 
+                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                className="text-white text-sm cursor-pointer w-full"
+              >
+                {team.playerName}
+              </label>
+            </div>
+          ))}
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+          >
+            Confirm Selection
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+    </div>
+  </div>
+</div>
                               
                               <div className="mt-2">
   <div className="flex justify-between items-center">
     <span className="text-white text-sm">
-      {eventMatch.team1 ? getTeamName(eventMatch.team1, eventMatch) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, eventMatch) : 'Not assigned'}
-    </span>
+    {eventMatch.team1 ? getTeamName(eventMatch.team1, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'} vs {eventMatch.team2 ? getTeamName(eventMatch.team2, {
+  ...eventMatch,
+  matchId: match.id
+}) : 'Not assigned'}
+</span>
     {eventMatch.team1 && eventMatch.team2 && (
       <button
         onClick={() => handleOpenScoreModal(match, eventMatch)}
@@ -2001,10 +2927,17 @@ const loadFixturesFromLocalStorage = () => {
     )}
   </div>
   {eventMatch.completed && (
-    <div className="mt-1 text-xs text-green-400 text-center">
-      Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}
-    </div>
-  )}
+  <div className="mt-1 text-xs text-green-400 text-center">
+    {eventMatch.walkover ? (
+      <span className="text-green-400"> {/* Change from text-red-400 to text-green-400 */}
+        Walkover: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)} won, 
+        {eventMatch.winner === 0 ? getTeamName(eventMatch.team2, eventMatch) : getTeamName(eventMatch.team1, eventMatch)} lost
+      </span>
+    ) : (
+      <>Score: {eventMatch.score} | Winner: {eventMatch.winner === 0 ? getTeamName(eventMatch.team1, eventMatch) : getTeamName(eventMatch.team2, eventMatch)}</>
+    )}
+  </div>
+)}
 </div>
                             </div>
                           ))}
@@ -2016,6 +2949,46 @@ const loadFixturesFromLocalStorage = () => {
               </div>
             </div>
           )}
+
+
+{/* Franchise Selection Modal */}
+{showFranchiseSelectionModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+      <h3 className="text-xl font-bold text-white mb-4">
+        Select Franchise for {selectedFranchisePosition === 1 ? 'Team 1' : 'Team 2'}
+      </h3>
+      
+      <div className="max-h-60 overflow-y-auto">
+        {franchises.map(franchise => (
+          <div 
+            key={franchise._id} 
+            className="p-3 border-b border-gray-700 hover:bg-gray-700 cursor-pointer flex items-center"
+            onClick={() => handleFranchiseSelection(franchise._id)}
+          >
+            {franchise.logoUrl && (
+              <img 
+                src={franchise.logoUrl} 
+                alt={franchise.franchiseName} 
+                className="w-8 h-8 mr-3 rounded-full object-cover"
+              />
+            )}
+            <span className="text-white">{franchise.franchiseName}</span>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mt-6 flex justify-end">
+        <button
+          onClick={handleCloseFranchiseSelectionModal}
+          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
           
           {/* Team Management Section */}
           <div className="bg-gray-800 p-4 rounded-md">
@@ -2186,6 +3159,23 @@ const loadFixturesFromLocalStorage = () => {
           onSave={handleSaveScore}
         />
       )}
+            {/* Add Timer Modal */}
+            {showTimerModal && selectedMatchForTimer && (
+        <TimerModal
+          match={selectedMatchForTimer}
+          onClose={() => setShowTimerModal(false)}
+          onSave={handleSaveTimer}
+        />
+      )}
+      {/* Walkover Modal */}
+{showWalkoverModal && selectedMatchForWalkover && (
+  <WalkoverModal
+    match={selectedMatchForWalkover}
+    unscoredMatches={unscoredMatches}
+    onClose={() => setShowWalkoverModal(false)}
+    onWalkover={handleWalkover}
+  />
+)}
     </div>
   );
 };
