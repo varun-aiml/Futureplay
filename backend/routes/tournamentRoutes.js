@@ -18,6 +18,13 @@ const {
   updatePoolArrangements
 } = require('../controllers/tournamentController');
 
+const {
+  saveEventFixtures,
+  getEventFixtures,
+  getAllTournamentEventFixtures,
+  updateEventMatch: updateEventFixtureMatch
+} = require('../controllers/eventFixtureController');
+
 // Public routes
 router.get('/top', getTopTournaments);
 router.get('/all', getAllTournaments);
@@ -53,5 +60,16 @@ router.route('/:id/events')
 router.route('/:id/events/:eventId')
   .put(updateEvent)
   .delete(deleteEvent);
+
+// Persistent Event Fixtures routes
+router.route('/:id/event-fixtures')
+  .get(getAllTournamentEventFixtures);
+
+router.route('/:id/events/:eventId/fixtures')
+  .get(getEventFixtures)
+  .post(saveEventFixtures);
+
+router.route('/:id/events/:eventId/fixtures/matches/:matchId')
+  .patch(updateEventFixtureMatch);
 
 module.exports = router;

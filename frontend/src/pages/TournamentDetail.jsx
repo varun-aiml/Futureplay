@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import OrganizerLayout from "../components/OrganizerLayout";
-import { getTournamentById, addEvent } from "../services/tournamentService";
-import { updateEvent, deleteEvent } from "../services/tournamentService";
+import {
+  getTournamentById,
+  addEvent,
+  updateEvent,
+  deleteEvent,
+  saveEventFixtures,
+  getAllTournamentEventFixtures
+} from "../services/tournamentService";
 import { getTournamentBookings } from '../services/bookingService';
 import FixtureEditor from "../components/tournament/FixtureEditor";
 import { toast } from "react-toastify";
@@ -60,29 +66,61 @@ const TournamentDetail = () => {
   const [showFranchiseFixtures, setShowFranchiseFixtures] = useState(false);
 
   useEffect(() => {
-    const fetchTournament = async () => {
+    const fetchTournamentAndFixtures = async () => {
       try {
-        const response = await getTournamentById(id);
-        setTournament(response.data.data);
+        const [tournamentRes, fixturesRes] = await Promise.allSettled([
+          getTournamentById(id),
+          getAllTournamentEventFixtures(id)
+        ]);
+
+        if (tournamentRes.status === 'fulfilled') {
+          setTournament(tournamentRes.value.data.data);
+        } else {
+          console.error("Error fetching tournament:", tournamentRes.reason);
+          setError("Failed to load tournament details");
+        }
+
+        if (fixturesRes.status === 'fulfilled' && fixturesRes.value.data?.data) {
+          const fixturesMap = {};
+          fixturesRes.value.data.data.forEach(fixture => {
+            fixturesMap[fixture.eventId] = fixture;
+          });
+          setEventFixtures(fixturesMap);
+        }
+
         setIsLoading(false);
       } catch (err) {
-        console.error("Error fetching tournament:", err);
+        console.error("Error fetching tournament or fixtures:", err);
         setError("Failed to load tournament details");
         setIsLoading(false);
       }
     };
 
-    fetchTournament();
+    fetchTournamentAndFixtures();
   }, [id]);
 
-  // Add this function to handle fixture updates
-const handleFixtureUpdated = (updatedFixture) => {
-    // Update the fixtures in state
-    setEventFixtures(prev => ({
-      ...prev,
-      [selectedFixtureEventId]: updatedFixture
-    }));
-    setFixtureData(updatedFixture);
+  // Handle fixture updates from editor with MongoDB persistence
+  const handleFixtureUpdated = async (updatedFixture) => {
+    try {
+      const saveRes = await saveEventFixtures(id, selectedFixtureEventId, updatedFixture);
+      const savedData = saveRes.data?.data || updatedFixture;
+
+      setEventFixtures(prev => ({
+        ...prev,
+        [selectedFixtureEventId]: savedData
+      }));
+      setFixtureData(savedData);
+      toast.success("Fixture changes saved to database!");
+    } catch (err) {
+      console.error("Failed to save updated fixture:", err);
+      // Still update in local state as immediate fallback
+      setEventFixtures(prev => ({
+        ...prev,
+        [selectedFixtureEventId]: updatedFixture
+      }));
+      setFixtureData(updatedFixture);
+      toast.error(err.response?.data?.message || "Failed to persist fixture update to database");
+    }
   };
 
   // Handle event click for editing
@@ -555,15 +593,20 @@ const handleFixtureUpdated = (updatedFixture) => {
       }
       
       if (fixtureResult) {
+        // Persist generated fixtures to MongoDB backend
+        const saveRes = await saveEventFixtures(id, eventId, fixtureResult);
+        const persistedFixture = saveRes.data?.data || fixtureResult;
+
         // Store the generated fixtures for this event
         setEventFixtures(prev => ({
           ...prev,
-          [eventId]: fixtureResult
+          [eventId]: persistedFixture
         }));
         
-        // Show the fixture modal
-        setFixtureData(fixtureResult);
+        // Show the fixture modal with persisted data
+        setFixtureData(persistedFixture);
         setShowFixtureModal(true);
+        toast.success('Fixtures generated and saved to database successfully!');
       }
     } catch (error) {
       console.error('Error generating fixtures:', error);
@@ -636,9 +679,11 @@ const editEventFixtures = (eventId) => {
     if (needsPreliminaryRound) {
       for (let i = 0; i < teamsInPreliminaryRound; i += 2) {
         matches.push({
+          matchNumber: matches.length + 1,
           round: 'PRELIMINARY ROUND',
-          player1: { name: teams[i].playerName },
-          player2: teams[i + 1] ? { name: teams[i + 1].playerName } : { name: 'BYE' },
+          roundIndex: 1,
+          player1: { name: teams[i].playerName, id: teams[i]._id ? teams[i]._id.toString() : null },
+          player2: teams[i + 1] ? { name: teams[i + 1].playerName, id: teams[i + 1]._id ? teams[i + 1]._id.toString() : null } : { name: 'BYE', id: null },
           status: 'Pending',
           score: '',
         });
@@ -651,14 +696,14 @@ const editEventFixtures = (eventId) => {
       // Winners from preliminary + byes
       // We don't know winners yet, so use 'TBD' for preliminary winners
       for (let i = 0; i < matchesInPreliminaryRound; i++) {
-        firstMainRoundTeams.push({ name: 'TBD' });
+        firstMainRoundTeams.push({ name: 'TBD', id: null });
       }
       for (let i = teamsInPreliminaryRound; i < teams.length; i++) {
-        firstMainRoundTeams.push({ name: teams[i].playerName });
+        firstMainRoundTeams.push({ name: teams[i].playerName, id: teams[i]._id ? teams[i]._id.toString() : null });
       }
     } else {
       // All teams play in first round
-      firstMainRoundTeams = teams.map(t => ({ name: t.playerName }));
+      firstMainRoundTeams = teams.map(t => ({ name: t.playerName, id: t._id ? t._id.toString() : null }));
     }
 
     let roundIdx = needsPreliminaryRound ? 1 : 0;
@@ -667,15 +712,17 @@ const editEventFixtures = (eventId) => {
       const roundName = roundNames[roundIdx];
       const numMatches = Math.floor(teamsForRound.length / 2);
       for (let i = 0; i < numMatches; i++) {
-        let p1 = teamsForRound[i * 2] || { name: 'TBD' };
-        let p2 = teamsForRound[i * 2 + 1] || { name: 'TBD' };
+        let p1 = teamsForRound[i * 2] || { name: 'TBD', id: null };
+        let p2 = teamsForRound[i * 2 + 1] || { name: 'TBD', id: null };
         // Only show real names in first main round, otherwise always 'TBD'
         if (roundIdx > (needsPreliminaryRound ? 1 : 0)) {
-          p1 = { name: 'TBD' };
-          p2 = { name: 'TBD' };
+          p1 = { name: 'TBD', id: null };
+          p2 = { name: 'TBD', id: null };
         }
         matches.push({
+          matchNumber: matches.length + 1,
           round: roundName,
+          roundIndex: roundIdx + 1,
           player1: p1,
           player2: p2,
           status: 'Pending',
@@ -683,7 +730,7 @@ const editEventFixtures = (eventId) => {
         });
       }
       // Prepare for next round: all winners are 'TBD' until matches are played
-      teamsForRound = Array(numMatches).fill({ name: 'TBD' });
+      teamsForRound = Array(numMatches).fill({ name: 'TBD', id: null });
     }
 
     return {
@@ -728,9 +775,15 @@ const editEventFixtures = (eventId) => {
           const awayTeam = teams.find(team => team._id === teamIds[away]);
           
           roundMatches.push({
+            matchNumber: roundMatches.length + 1,
+            round: `ROUND ${round + 1}`,
+            roundIndex: round + 1,
             team1: homeTeam.playerName,
             team2: awayTeam.playerName,
-            score: ''
+            player1: { name: homeTeam.playerName, id: homeTeam._id ? homeTeam._id.toString() : null },
+            player2: { name: awayTeam.playerName, id: awayTeam._id ? awayTeam._id.toString() : null },
+            score: '',
+            status: 'Pending'
           });
         }
       }
@@ -827,9 +880,15 @@ const editEventFixtures = (eventId) => {
             const awayTeam = group.find(team => team._id === groupTeamIds[away]);
             
             roundMatches.push({
+              matchNumber: roundMatches.length + 1,
+              round: `Group Stage - Round ${round + 1}`,
+              roundIndex: round + 1,
               team1: homeTeam.playerName,
               team2: awayTeam.playerName,
+              player1: { name: homeTeam.playerName, id: homeTeam._id ? homeTeam._id.toString() : null },
+              player2: { name: awayTeam.playerName, id: awayTeam._id ? awayTeam._id.toString() : null },
               score: '',
+              status: 'Pending',
               group: `Group ${String.fromCharCode(65 + groupIndex)}` // A, B, C, etc.
             });
           }
@@ -907,19 +966,35 @@ const editEventFixtures = (eventId) => {
       if (i === 1) {
         // First knockout round uses group winners/runners-up
         for (let j = 0; j < matchesInRound; j++) {
+          const p1 = `Winner Group ${String.fromCharCode(65 + j)}`;
+          const p2 = `Runner-up Group ${String.fromCharCode(65 + ((numGroups - 1) - j))}`;
           knockoutMatchups.push({
-            team1: `Winner Group ${String.fromCharCode(65 + j)}`,
-            team2: `Runner-up Group ${String.fromCharCode(65 + ((numGroups - 1) - j))}`,
-            score: ''
+            matchNumber: j + 1,
+            round: roundName,
+            roundIndex: i,
+            team1: p1,
+            team2: p2,
+            player1: { name: p1, id: null },
+            player2: { name: p2, id: null },
+            score: '',
+            status: 'Pending'
           });
         }
       } else {
         // Later rounds use winners from previous rounds
         for (let j = 0; j < matchesInRound; j++) {
+          const p1 = `Winner of Match ${(i-1)*matchesInRound*2 + j*2 + 1}`;
+          const p2 = `Winner of Match ${(i-1)*matchesInRound*2 + j*2 + 2}`;
           knockoutMatchups.push({
-            team1: `Winner of Match ${(i-1)*matchesInRound*2 + j*2 + 1}`,
-            team2: `Winner of Match ${(i-1)*matchesInRound*2 + j*2 + 2}`,
-            score: ''
+            matchNumber: j + 1,
+            round: roundName,
+            roundIndex: i,
+            team1: p1,
+            team2: p2,
+            player1: { name: p1, id: null },
+            player2: { name: p2, id: null },
+            score: '',
+            status: 'Pending'
           });
         }
       }

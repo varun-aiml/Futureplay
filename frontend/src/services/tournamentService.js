@@ -133,3 +133,16 @@ export const fetchFixtures = (tournamentId) =>
 // Update a specific event match in a fixture
 export const updateEventMatch = (fixtureId, eventMatchId, data) =>
   api.patch(`/fixtures/${fixtureId}/eventMatch/${encodeURIComponent(eventMatchId)}`, data);
+
+// Persistent Event Fixtures APIs (Standard Tournament Events)
+export const saveEventFixtures = (tournamentId, eventId, fixtureData) =>
+  api.post(`/tournaments/${tournamentId}/events/${eventId}/fixtures`, { fixtureData });
+
+export const getEventFixtures = (tournamentId, eventId) =>
+  api.get(`/tournaments/${tournamentId}/events/${eventId}/fixtures`);
+
+export const getAllTournamentEventFixtures = (tournamentId) =>
+  api.get(`/tournaments/${tournamentId}/event-fixtures`);
+
+export const updateEventFixtureMatch = (tournamentId, eventId, matchId, matchData) =>
+  api.patch(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}`, matchData);

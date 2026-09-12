@@ -27,13 +27,15 @@ const FixtureEditor = ({ fixtureData, tournamentId, eventId, onClose, onFixtureU
     }
   }, [fixtureData]);
 
+  const getMatchId = (m) => m?.matchId || m?._id?.toString() || m?._id;
+
   const handleMatchSelect = (match) => {
     setSelectedMatch(match);
   };
 
   const handleTeamSwap = (matchId, position, newTeam) => {
     const updatedFixture = {...editableFixture};
-    const matchIndex = updatedFixture.matches.findIndex(m => m.matchId === matchId);
+    const matchIndex = updatedFixture.matches.findIndex(m => getMatchId(m) === matchId);
     
     if (matchIndex !== -1) {
       // Store the team being replaced
@@ -66,9 +68,8 @@ const FixtureEditor = ({ fixtureData, tournamentId, eventId, onClose, onFixtureU
   const saveFixtureChanges = async () => {
     try {
       setIsLoading(true);
-      // For now, we'll just update the local state since we don't have a backend API yet
       if (onFixtureUpdated) {
-        onFixtureUpdated(editableFixture);
+        await onFixtureUpdated(editableFixture);
       }
       toast.success('Fixture updated successfully');
       onClose();
@@ -123,13 +124,13 @@ const FixtureEditor = ({ fixtureData, tournamentId, eventId, onClose, onFixtureU
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {editableFixture.matches && editableFixture.matches.map((match, index) => (
               <div 
-                key={match.matchId || index} 
+                key={getMatchId(match) || index} 
                 className={`bg-gray-700 rounded-lg p-4 cursor-pointer transition-all duration-300 hover:bg-gray-600 ${selectedMatch === match ? 'ring-2 ring-red-500' : ''}`}
                 onClick={() => handleMatchSelect(match)}
               >
                 <div className="flex justify-between items-center mb-2">
                   <div className="text-sm text-gray-400">{match.round}</div>
-                  <div className="text-sm font-medium text-red-400">Match {index + 1}</div>
+                  <div className="text-sm font-medium text-red-400">Match {match.matchNumber || (index + 1)}</div>
                 </div>
                 <div className={`flex justify-between items-center p-2 rounded-md ${match.player1?.name !== 'TBD' && match.player1?.name !== '-' ? 'border-blue-500' : 'border-gray-700'} border`}>
                   <span className="font-medium text-white">{match.player1?.name || 'TBD'}</span>
@@ -156,7 +157,7 @@ const FixtureEditor = ({ fixtureData, tournamentId, eventId, onClose, onFixtureU
                     onChange={(e) => {
                       const newTeam = teamOptions.find(team => team.name === e.target.value);
                       if (newTeam) {
-                        handleTeamSwap(selectedMatch.matchId, 'player1', newTeam);
+                        handleTeamSwap(getMatchId(selectedMatch), 'player1', newTeam);
                       }
                     }}
                   >
@@ -179,7 +180,7 @@ const FixtureEditor = ({ fixtureData, tournamentId, eventId, onClose, onFixtureU
                     onChange={(e) => {
                       const newTeam = teamOptions.find(team => team.name === e.target.value);
                       if (newTeam) {
-                        handleTeamSwap(selectedMatch.matchId, 'player2', newTeam);
+                        handleTeamSwap(getMatchId(selectedMatch), 'player2', newTeam);
                       }
                     }}
                   >
