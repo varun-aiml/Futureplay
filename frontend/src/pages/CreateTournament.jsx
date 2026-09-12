@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import OrganizerLayout from "../components/OrganizerLayout";
+import { API_URL } from "../services/api";
 import { createTournament, updateTournament } from "../services/tournamentService";
 import {
   MapContainer,
@@ -34,8 +35,8 @@ const LocationMarker = ({
       const { lat, lng } = e.latlng;
       setSelectedLocation([lat, lng]);
 
-      // Reverse geocode using Nominatim
-      fetch(`https://sportstek.onrender.com/api/reverse-geocode?lat=${lat}&lon=${lng}`)
+      // Reverse geocode using backend proxy
+      fetch(`${API_URL}/reverse-geocode?lat=${lat}&lon=${lng}`)
         .then((res) => res.json())
         .then((data) => {
           const address = data.display_name || "Unknown location";

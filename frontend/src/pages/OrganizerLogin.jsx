@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/icon.png";
 import { login } from "../services/authService";
+import { API_URL } from "../services/api";
 import { useAuth } from "../context/authContext";
 
 function OrganizerLogin() {
@@ -86,9 +87,7 @@ function OrganizerLogin() {
 
   // Google OAuth Sign In
   const handleGoogleSignIn = () => {
-    // http://localhost:5000/api/auth/google
-    // https://sportstek.onrender.com/api/auth/google
-    window.location.href = "http://localhost:5000/api/auth/google";
+    window.location.href = `${API_URL}/auth/google`;
   };
 
   return (

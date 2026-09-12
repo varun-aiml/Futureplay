@@ -23,23 +23,30 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
+// Check allowed origins for Express CORS and Socket.IO
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+
+  const allowedOrigins = [
+    'http://localhost:5173', 
+    'https://sportstek-frontend.onrender.com',
+    process.env.FRONTEND_URL,
+    process.env.CLIENT_URL
+  ].filter(Boolean);
+
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(cleanOrigin);
+
+  return isLocalNetwork || allowedOrigins.some((allowed) => allowed.replace(/\/+$/, '') === cleanOrigin);
+};
+
 // Initialize Socket.IO with CORS settings matching Express
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      const allowedOrigins = [
-        'http://localhost:5173', 
-        'https://sportstek-frontend.onrender.com'
-      ];
-
-      const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin);
-
-      if (isLocalNetwork || allowedOrigins.includes(origin)) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
-
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true
@@ -67,21 +74,9 @@ io.on('connection', (socket) => {
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl)
-    if (!origin) return callback(null, true);
-
-    const allowedOrigins = [
-      'http://localhost:5173', 
-      'https://sportstek-frontend.onrender.com'
-    ];
-
-    // Allow local network origins (e.g., 192.168.1.37:5173) for mobile testing
-    const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin);
-
-    if (isLocalNetwork || allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
-
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true

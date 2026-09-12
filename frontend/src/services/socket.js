@@ -3,14 +3,19 @@ import { io } from 'socket.io-client';
 // Determine the socket server URL dynamically to support local network mobile testing and production
 const getSocketUrl = () => {
   if (import.meta.env.VITE_SOCKET_URL) {
-    return import.meta.env.VITE_SOCKET_URL;
+    return import.meta.env.VITE_SOCKET_URL.replace(/\/+$/, '');
   }
-  if (typeof window !== 'undefined') {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location.hostname) {
     const hostname = window.location.hostname;
-    // If running on localhost or IP address (e.g. mobile access via 192.168.x.x)
-    return `http://${hostname}:5000`;
+    const isLocal = /^(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)$/.test(hostname);
+    if (isLocal) {
+      return `http://${hostname}:5000`;
+    }
   }
-  return 'http://localhost:5000';
+  return 'https://sportstek.onrender.com';
 };
 
 let socketInstance = null;

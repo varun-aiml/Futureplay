@@ -44,18 +44,13 @@ router.get(
     });
     
     // Redirect based on profile completion status
+    const frontendUrl = (process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://sportstek-frontend.onrender.com' : 'http://localhost:5173')).replace(/\/+$/, '');
+
     if (!req.user.profileComplete) {
-      res.redirect(`http://localhost:5173/complete-profile?data=${encodeURIComponent(userData)}`);
+      res.redirect(`${frontendUrl}/complete-profile?data=${encodeURIComponent(userData)}`);
     } else {
-      // http://localhost:5173/
-      // https://sportstek-frontend.onrender.com/
-      res.redirect(`http://localhost:5173/organizer/home?data=${encodeURIComponent(userData)}`);
+      res.redirect(`${frontendUrl}/organizer/home?data=${encodeURIComponent(userData)}`);
     }
-    // if (!req.user.profileComplete) {
-    //   res.redirect(`${process.env.FRONTEND_URL}/complete-profile?data=${encodeURIComponent(userData)}`);
-    // } else {
-    //   res.redirect(`${process.env.LOCAL_FRONTEND_URL}/organizer/home?data=${encodeURIComponent(userData)}`);
-    // }
   }
 );
 
