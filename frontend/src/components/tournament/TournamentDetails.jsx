@@ -1,13 +1,13 @@
 const TournamentDetails = ({ tournament, setShowImageModal }) => {
     return (
-      <div className="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
-        <div className="md:flex">
-          <div className="md:w-1/3">
+      <div className="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6 w-full min-w-0">
+        <div className="flex flex-col md:flex-row">
+          <div className="w-full md:w-1/3 flex-shrink-0">
             {tournament.posterUrl ? (
               <img
                 src={tournament.posterUrl}
                 alt={tournament.name}
-                className="w-full h-64 md:h-full object-cover cursor-pointer"
+                className="w-full h-48 sm:h-64 md:h-full min-h-[180px] object-cover cursor-pointer"
                 onClick={() => setShowImageModal(true)}
                 onError={(e) => {
                   console.error("Image failed to load:", e.target.src);
@@ -16,7 +16,7 @@ const TournamentDetails = ({ tournament, setShowImageModal }) => {
                 }}
               />
             ) : (
-              <div className="w-full h-64 md:h-full bg-gray-700 flex items-center justify-center">
+              <div className="w-full h-48 sm:h-64 md:h-full min-h-[180px] bg-gray-700 flex items-center justify-center">
                 <svg
                   className="w-16 h-16 text-gray-500"
                   fill="none"
@@ -35,16 +35,16 @@ const TournamentDetails = ({ tournament, setShowImageModal }) => {
             )}
           </div>
   
-          <div className="p-6 md:w-2/3">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-xl font-semibold text-white mb-2">
+          <div className="p-4 sm:p-6 w-full md:w-2/3 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-4 mb-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg sm:text-xl font-semibold text-white mb-2 break-words">
                   {tournament.name}
                 </h2>
-                <p className="text-gray-400 mb-4">{tournament.description}</p>
+                <p className="text-gray-400 mb-4 break-words text-sm sm:text-base">{tournament.description}</p>
               </div>
               <span
-                className={`px-3 py-1 text-xs rounded-full ${
+                className={`self-start px-3 py-1 text-xs rounded-full flex-shrink-0 ${
                   tournament.status === "Active"
                     ? "bg-green-100 text-green-800"
                     : tournament.status === "Completed"
@@ -56,36 +56,36 @@ const TournamentDetails = ({ tournament, setShowImageModal }) => {
               </span>
             </div>
   
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="min-w-0">
                 <h3 className="text-sm font-medium text-gray-400">
                   Location
                 </h3>
-                <p className="text-white">{tournament.location}</p>
+                <p className="text-white break-words text-sm sm:text-base">{tournament.location}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-medium text-gray-400">
                   Registration Deadline
                 </h3>
-                <p className="text-white">
+                <p className="text-white break-words text-sm sm:text-base">
                   {new Date(
                     tournament.registrationDeadline
                   ).toLocaleDateString()}
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-medium text-gray-400">
                   Start Date
                 </h3>
-                <p className="text-white">
+                <p className="text-white break-words text-sm sm:text-base">
                   {new Date(tournament.startDate).toLocaleDateString()}
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-medium text-gray-400">
                   End Date
                 </h3>
-                <p className="text-white">
+                <p className="text-white break-words text-sm sm:text-base">
                   {new Date(tournament.endDate).toLocaleDateString()}
                 </p>
               </div>

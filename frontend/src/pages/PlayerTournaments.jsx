@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import PlayerLayout from '../components/PlayerLayout';
 import { getAllTournaments } from '../services/tournamentService';
 import { format } from 'date-fns';
@@ -173,8 +173,25 @@ const PlayerTournaments = () => {
       filterBy={filterBy}
     >
       <div className="container mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Tournaments</h1>
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+          <div className="flex items-center space-x-4">
+            <Link
+              to="/"
+              className="inline-flex items-center px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 hover:border-gray-600 rounded-lg text-sm font-medium transition duration-200 shadow-sm group"
+              title="Return to Home Page"
+            >
+              <svg 
+                className="w-4 h-4 mr-2 text-red-500 group-hover:-translate-x-0.5 transition-transform duration-200" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Home
+            </Link>
+            <h1 className="text-2xl font-bold text-white">Tournaments</h1>
+          </div>
           
           {/* Show back button when viewing fixtures or results */}
           {(showFixtures || showResults) && (

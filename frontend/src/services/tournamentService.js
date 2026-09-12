@@ -121,3 +121,15 @@ export const getTopTournaments = async () => {
   const response = await api.get('/tournaments/top');
   return response;
 };
+
+// Save fixtures to backend
+export const saveFixtures = (tournamentId, fixtures) =>
+  api.post('/fixtures/save', { tournamentId, fixtures });
+
+// Fetch fixtures from backend
+export const fetchFixtures = (tournamentId) =>
+  api.get(`/fixtures/${tournamentId}`);
+
+// Update a specific event match in a fixture
+export const updateEventMatch = (fixtureId, eventMatchId, data) =>
+  api.patch(`/fixtures/${fixtureId}/eventMatch/${encodeURIComponent(eventMatchId)}`, data);

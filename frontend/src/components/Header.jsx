@@ -38,10 +38,13 @@ function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex space-x-8">
-            <a href="#home" className="text-white hover:text-red-400 transition duration-300 font-medium relative group">
+            <Link 
+              to="/organizer/login" 
+              className="text-white hover:text-red-400 transition duration-300 font-medium relative group"
+            >
               Home
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-500 transition-all duration-300 group-hover:w-full"></span>
-            </a>
+            </Link>
             <a href="#features" className="text-white hover:text-red-400 transition duration-300 font-medium relative group">
               Features
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-500 transition-all duration-300 group-hover:w-full"></span>
@@ -70,9 +73,12 @@ function Header() {
             >
               Organizers
             </Link>
-            <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
+            <Link 
+              to="/tournaments"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md text-center"
+            >
               Players
-            </button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -94,7 +100,13 @@ function Header() {
         {isMenuOpen && (
           <nav className="md:hidden bg-gray-800/95 backdrop-blur-sm px-4 py-5 absolute w-full border-t border-gray-700">
             <div className="flex flex-col space-y-4">
-              <a href="#home" className="text-white hover:text-red-400 transition duration-300 py-2 font-medium">Home</a>
+              <Link 
+                to="/organizer/login" 
+                className="text-white hover:text-red-400 transition duration-300 py-2 font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
+              </Link>
               <a href="#features" className="text-white hover:text-red-400 transition duration-300 py-2 font-medium">Features</a>
               <a href="#upcoming-tournaments" className="text-white hover:text-red-400 transition duration-300 py-2 font-medium">Tournaments</a>
               <a href="#contact" className="text-white hover:text-red-400 transition duration-300 py-2 font-medium">Contact</a>
@@ -113,9 +125,13 @@ function Header() {
                 >
                   Organizers
                 </Link>
-                <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md">
+                <Link 
+                  to="/tournaments"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition duration-300 shadow-md text-center"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Players
-                </button>
+                </Link>
               </div>
             </div>
           </nav>

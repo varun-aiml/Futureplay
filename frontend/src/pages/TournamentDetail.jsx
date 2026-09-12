@@ -1066,7 +1066,7 @@ const editEventFixtures = (eventId) => {
 
   return (
     <OrganizerLayout>
-      <div className="container mx-auto">
+      <div className="container mx-auto max-w-full min-w-0">
         {/* Tournament Header */}
         <TournamentHeader tournament={tournament} handleEdit={handleEdit} />
 
@@ -1088,7 +1088,7 @@ const editEventFixtures = (eventId) => {
         {/* Events Tab Content */}
         {activeTab === "events" && (
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
               <h2 className="text-xl font-semibold text-white">Events</h2>
               <button
                 onClick={toggleEventForm}
@@ -1148,10 +1148,10 @@ const editEventFixtures = (eventId) => {
         {/* Fixtures Tab Content */}
         {activeTab === "fixtures" && (
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
               <h2 className="text-xl font-semibold text-white">Fixtures</h2>
               
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Toggle button for franchise fixtures view */}
                 <button
                   onClick={toggleFranchiseFixtures}
@@ -1192,8 +1192,8 @@ const editEventFixtures = (eventId) => {
             ) : (
               // Regular Fixtures View
               selectedFixtureEventId ? (
-                <div className="bg-gray-800 rounded-xl p-6">
-                  <div className="flex justify-between items-center mb-4">
+                <div className="bg-gray-800 rounded-xl p-4 sm:p-6">
+                  <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                     <div>
                       <h3 className="text-lg font-medium text-white">
                         {getEventName(selectedFixtureEventId)}
@@ -1243,7 +1243,7 @@ const editEventFixtures = (eventId) => {
                   {eventFixtures[selectedFixtureEventId] ? (
                     <div className="text-white">
                        <p className="mb-4">Fixtures have been generated for this event. Click the buttons below to view or edit them.</p>
-                       <div className="flex space-x-3">
+                       <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => viewEventFixtures(selectedFixtureEventId)}
                   className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"

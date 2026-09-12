@@ -44,11 +44,7 @@ function App() {
             <Route path="/tournament/:id" element={<PlayerTournamentDetails />} />
             <Route
               path="/organizer/verify-otp"
-              element={
-                <PrivateRoute>
-                  <OTPVerification />
-                </PrivateRoute>
-              }
+              element={<Navigate to="/organizer/home" replace />}
             />
 
             <Route

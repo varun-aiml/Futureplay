@@ -275,8 +275,8 @@ function OrganizerSignup() {
       // Update auth context
       loginUser(response.user);
 
-      // Redirect to OTP verification
-      navigate("/organizer/verify-otp");
+      // Redirect to organizer dashboard
+      navigate("/organizer/home");
     } catch (err) {
       if (err.response?.data?.message.includes("email already exists")) {
         setFieldErrors((prev) => ({
@@ -330,7 +330,9 @@ function OrganizerSignup() {
           <div className="mb-6">
             <button
               onClick={() => {
-                window.location.href = "https://sportstek.onrender.com/api/auth/google";
+                // http://localhost:5000/api/auth/google
+                // https://sportstek.onrender.com/api/auth/google
+                window.location.href = "http://localhost:5000/api/auth/google";
               }}
               className="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50 text-gray-800 font-medium transition"
             >

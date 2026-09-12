@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 function HeroSection() {
     return (
       <section id="home" className="relative min-h-screen flex items-center bg-gradient-to-br from-gray-900 to-gray-800 text-white overflow-hidden">
@@ -22,9 +24,12 @@ function HeroSection() {
                 Professional tournament management platform designed for organizers who demand excellence.
               </p>
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6">
-                <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-10 rounded-md transition duration-300 shadow-lg transform hover:-translate-y-1">
+                <Link 
+                  to="/organizer/login"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-10 rounded-md transition duration-300 shadow-lg transform hover:-translate-y-1 text-center inline-block"
+                >
                   Create Tournament
-                </button>
+                </Link>
                 <button className="bg-transparent border-2 border-white hover:bg-white hover:text-gray-900 font-bold py-4 px-10 rounded-md transition duration-300 shadow-lg transform hover:-translate-y-1">
                   Explore Features
                 </button>

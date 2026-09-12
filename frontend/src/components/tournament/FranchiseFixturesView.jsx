@@ -3,7 +3,7 @@ import { getAllFranchises } from '../../services/franchiseService';
 import { getTournamentBookings, updateTeamEvent } from '../../services/bookingService';
 import { toast } from 'react-toastify';
 import ScoreModal from './ScoreModal';
-import { updatePoolArrangements, getTournamentById } from '../../services/tournamentService';
+import { updatePoolArrangements, getTournamentById, saveFixtures, fetchFixtures, updateEventMatch } from '../../services/tournamentService';
 import TimerModal from './TimerModal';
 import WalkoverModal from './WalkoverModal';
 
@@ -164,72 +164,111 @@ const toggleDropdown = (matchId, eventId, franchiseSide) => {
 };
 
 // Add this function to handle team assignment from multiple selections
-const handleMultiTeamAssignment = (matchId, poolType, eventId, franchiseSide) => {
-  const key = `${matchId}-${eventId}-${franchiseSide}`;
-  const selectedTeamIds = selectedTeams[key] || [];
-  
-  if (selectedTeamIds.length > 0) {
-    // Assign the first selected team to the event match
-    handleTeamAssignment(matchId, poolType, eventId, franchiseSide, selectedTeamIds[0]);
-    
-    // Store the additional team information for display purposes
-    if (selectedTeamIds.length > 1) {
-      // Create or update the multiTeamSelections state
-      setMultiTeamSelections(prev => ({
-        ...prev,
-        [`${matchId}-${eventId}-${franchiseSide}`]: selectedTeamIds
-      }));
+const handleMultiTeamAssignment = async (matchId, poolType, eventMatchId, franchiseSide) => {
+  try {
+    console.log('handleMultiTeamAssignment called', { matchId, poolType, eventMatchId, franchiseSide });
+    const key = `${matchId}-${eventMatchId}-${franchiseSide}`;
+    const selectedTeamIds = selectedTeams[key] || [];
+
+    if (selectedTeamIds.length > 0) {
+      handleTeamAssignment(matchId, poolType, eventMatchId, franchiseSide, selectedTeamIds[0]);
+      // Find the fixture by matchId, but use fixture._id for backend
+      const poolFixtures = fixtures[poolType === 'A' ? 'poolA' : poolType === 'B' ? 'poolB' : 'knockout'];
+      console.log('poolFixtures:', poolFixtures, 'matchId:', matchId);
+      const fixture = poolFixtures.find(m => m.id === matchId || m._id === matchId);
+      if (fixture) {
+        // Log eventMatches and eventMatchId for debugging
+        console.log('fixture.eventMatches:', fixture.eventMatches, 'eventMatchId:', eventMatchId);
+        // Find eventMatch by eventId or _id (as string)
+        const eventMatch = fixture.eventMatches.find(em => em.eventId === eventMatchId || (em._id && em._id.toString() === eventMatchId));
+        if (eventMatch) {
+          const fixtureId = fixture._id || fixture.id;
+          const eventMatchMongoId = eventMatch._id ? eventMatch._id.toString() : eventMatchId; // Always use MongoDB _id if present
+          const data = {};
+          if (franchiseSide === 1) data.teamAPlayers = selectedTeamIds;
+          else data.teamBPlayers = selectedTeamIds;
+          console.log('Sending to backend:', { fixtureId, eventMatchMongoId, data });
+          const response = await updateEventMatch(fixtureId, eventMatchMongoId, data);
+          if (response && response.data) {
+            setFixtures(prevFixtures => {
+              const updatedFixtures = { ...prevFixtures };
+              const poolKey = poolType === 'A' ? 'poolA' : poolType === 'B' ? 'poolB' : 'knockout';
+              updatedFixtures[poolKey] = updatedFixtures[poolKey].map(m => {
+                if ((m._id || m.id) === fixtureId) {
+                  return { ...response.data, id: fixtureId };
+                }
+                return m;
+              });
+              return updatedFixtures;
+            });
+            // Persist the updated fixtures to the backend
+            setTimeout(() => saveFixturesToDatabase(), 0);
+          }
+        }
+      }
+      if (selectedTeamIds.length > 1) {
+        setMultiTeamSelections(prev => ({
+          ...prev,
+          [`${matchId}-${eventMatchId}-${franchiseSide}`]: selectedTeamIds
+        }));
+      }
     }
+    console.log('Closing modal', key);
+    setDropdownOpen(prev => {
+      const newState = { ...prev, [key]: false };
+      console.log('dropdownOpen after update:', newState);
+      return newState;
+    });
+  } catch (error) {
+    console.error('Error in handleMultiTeamAssignment:', error);
   }
-  
-  // Close the dropdown after selection
-  setDropdownOpen(prev => ({
-    ...prev,
-    [key]: false
-  }));
 };
 
 // Add this function to get the display text for selected teams
 const getSelectedTeamsDisplay = (matchId, eventId, franchiseSide, currentTeamId) => {
-  const key = `${matchId}-${eventId}-${franchiseSide}`;
-  const selectedTeamIds = selectedTeams[key] || [];
+  // Find the match and eventMatch
+  let match = null;
+  let eventMatch = null;
+  ['poolA', 'poolB', 'knockout'].forEach(poolKey => {
+    if (!match) {
+      match = fixtures[poolKey].find(m => m.id === matchId);
+      if (match) {
+        eventMatch = match.eventMatches.find(em => em.eventId === eventId);
+      }
+    }
+  });
+  if (!eventMatch) return 'Select Team';
+
+  // Use backend-persisted teamAPlayers/teamBPlayers
+  const selectedTeamIds =
+    franchiseSide === 1 ? eventMatch.teamAPlayers || [] : eventMatch.teamBPlayers || [];
   const isTriplet = isTripletEvent(eventId);
-  
+
   if (selectedTeamIds.length === 0 && currentTeamId) {
-    // If nothing new is selected but we have a current team
     const team = bookings.find(booking => booking._id === currentTeamId);
     return team ? team.playerName : 'Select Team';
   }
-  
   if (selectedTeamIds.length === 0) {
     return 'Select Team';
   }
-  
   if (selectedTeamIds.length === 1) {
     const team = bookings.find(booking => booking._id === selectedTeamIds[0]);
     return team ? team.playerName : 'Select Team';
   }
-  
-  // If we have multiple selections
   if (isTriplet && selectedTeamIds.length === 3) {
-    // For triplet events with 3 selections, display as "Team A, Team B, and Team C"
     const team1 = bookings.find(booking => booking._id === selectedTeamIds[0]);
     const team2 = bookings.find(booking => booking._id === selectedTeamIds[1]);
     const team3 = bookings.find(booking => booking._id === selectedTeamIds[2]);
-    
     if (team1 && team2 && team3) {
       return `${team1.playerName}, ${team2.playerName}, and ${team3.playerName}`;
     }
   } else if (selectedTeamIds.length === 2) {
-    // For regular events with 2 selections, display as "Team A and Team B"
     const team1 = bookings.find(booking => booking._id === selectedTeamIds[0]);
     const team2 = bookings.find(booking => booking._id === selectedTeamIds[1]);
-    
     if (team1 && team2) {
       return `${team1.playerName} and ${team2.playerName}`;
     }
   }
-  
   return 'Select Team';
 };
 
@@ -251,11 +290,14 @@ const getSelectedTeamsDisplay = (matchId, eventId, franchiseSide, currentTeamId)
   };
 
     // Function to handle saving timer data
-    const handleSaveTimer = (timerData) => {
+    const handleSaveTimer = async (timerData) => {
       if (!selectedMatchForTimer) return;
-      
       const matchId = selectedMatchForTimer.matchId;
-      
+      const fixture = fixtures[selectedMatchForTimer.poolType === 'A' ? 'poolA' : selectedMatchForTimer.poolType === 'B' ? 'poolB' : 'knockout'].find(m => m.id === matchId);
+      if (fixture) {
+        const fixtureId = fixture.id;
+        await updateEventMatch(fixtureId, '', { scheduledTime: timerData.scheduledTime });
+      }
       setMatchTimers(prev => ({
         ...prev,
         [matchId]: timerData
@@ -322,7 +364,7 @@ const getSelectedTeamsDisplay = (matchId, eventId, franchiseSide, currentTeamId)
     
     // Close modal and save changes
     setShowFranchiseSelectionModal(false);
-    setTimeout(() => saveFixturesToLocalStorage(), 0);
+    setTimeout(() => saveFixturesToDatabase(), 0);
     toast.success(`Franchise updated successfully!`);
   };
 
@@ -810,7 +852,7 @@ const handleWalkover = (eventId, winnerIndex) => {
   });
   
   // Save to localStorage immediately without setTimeout
-  saveFixturesToLocalStorage(true);
+  saveFixturesToDatabase(true);
   
   // Remove this match from unscored matches
   setUnscoredMatches(prev => prev.filter(m => m.eventId !== eventId));
@@ -1006,7 +1048,7 @@ setDeclaredResultsByPool(newResultsByPool);
 
   const handlePoolChange = (newPool) => {
     // Save any pending changes to localStorage first
-    saveFixturesToLocalStorage(false);
+    saveFixturesToDatabase(false);
       
     // Add a small delay before changing the pool
     setTimeout(() => {
@@ -1038,13 +1080,13 @@ setDeclaredResultsByPool(newResultsByPool);
   };
   
 // Modify the handleSaveScore function to handle walkover
-const handleSaveScore = (scoreData, showToast = false) => {
+const handleSaveScore = async (scoreData, showToast = false) => {
   if (!selectedMatchForScoring) return;
-  
+
   setFixtures(prevFixtures => {
     const updatedFixtures = { ...prevFixtures };
     let targetPool;
-    
+
     if (selectedMatchForScoring.poolType === 'knockout') {
       targetPool = 'knockout';
     } else if (selectedMatchForScoring.poolType === 'A') {
@@ -1052,40 +1094,40 @@ const handleSaveScore = (scoreData, showToast = false) => {
     } else if (selectedMatchForScoring.poolType === 'B') {
       targetPool = 'poolB';
     }
-    
+
     updatedFixtures[targetPool] = updatedFixtures[targetPool].map(match => {
       if (match.id === selectedMatchForScoring.matchId) {
         const updatedEventMatches = match.eventMatches.map(eventMatch => {
           if (eventMatch.eventId === selectedMatchForScoring.eventId) {
-            return { 
-              ...eventMatch, 
+            // Persist to backend
+            const fixtureId = match.id;
+            const eventType = eventMatch.eventName || eventMatch.eventId;
+            updateEventMatch(fixtureId, eventType, {
+              score: scoreData.score,
+              winner: scoreData.winner,
+            });
+            return {
+              ...eventMatch,
               score: scoreData.score,
               completed: scoreData.completed,
               winner: scoreData.winner,
-              walkover: scoreData.walkover // Add walkover property
+              walkover: scoreData.walkover
             };
           }
           return eventMatch;
         });
-        
         return { ...match, eventMatches: updatedEventMatches };
       }
       return match;
     });
-    
-    // Save to localStorage without showing toast during auto-save
-    setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
-    
     return updatedFixtures;
   });
-  
+
   // If we're scoring a semi-final match, update the final and third-place match
-  if (selectedMatchForScoring.poolType === 'knockout' && 
+  if (selectedMatchForScoring.poolType === 'knockout' &&
       (selectedMatchForScoring.matchId === 'sf-1' || selectedMatchForScoring.matchId === 'sf-2')) {
-    // Use setTimeout to ensure the fixtures state is updated first
     setTimeout(() => {
       updateFinalWithSemiFinalists();
-      // updateThirdPlaceWithSemiFinalists();
     }, 100);
   }
 };
@@ -1222,7 +1264,7 @@ const updateKnockoutFixtures = () => {
     });
     
     // Save updated fixtures to localStorage
-    setTimeout(() => saveFixturesToLocalStorage(), 0);
+    setTimeout(() => saveFixturesToDatabase(), 0);
     
     toast.success('Knockout fixtures updated with pool winners!');
   };
@@ -1309,7 +1351,7 @@ const updateFinalWithSemiFinalists = (showToast = false) => {
   updateThirdPlaceWithSemiFinalists(showToast);
   
   // Save updated fixtures to localStorage
-  setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
+  setTimeout(() => saveFixturesToDatabase(showToast), 0);
   
   if (showToast) {
     toast.success('Final updated with semi-final winners!');
@@ -1499,7 +1541,7 @@ const updateThirdPlaceWithSemiFinalists = (showToast = false) => {
   });
   
   // Save updated fixtures to localStorage
-  setTimeout(() => saveFixturesToLocalStorage(showToast), 0);
+  setTimeout(() => saveFixturesToDatabase(showToast), 0);
   
   if (showToast) {
     toast.success('Third place match updated with semi-final losers!');
@@ -1507,7 +1549,7 @@ const updateThirdPlaceWithSemiFinalists = (showToast = false) => {
 };
 
   // Generate all fixtures
-  const generateFixtures = () => {
+  const generateFixtures = async () => {
     try {
       setIsGeneratingFixtures(true);
       setFixtureError('');
@@ -1584,7 +1626,7 @@ const updateThirdPlaceWithSemiFinalists = (showToast = false) => {
       setShowFixtures(true);
       
       // Save fixtures to localStorage
-      setTimeout(() => saveFixturesToLocalStorage(), 0);
+      setTimeout(() => saveFixturesToDatabase(), 0);
       
       toast.success('Fixtures generated successfully!');
     } catch (error) {
@@ -1616,7 +1658,7 @@ const handleCourtChange = (matchId, poolType, courtNumber) => {
       }
       
       // Save changes to localStorage
-      setTimeout(() => saveFixturesToLocalStorage(), 0);
+      setTimeout(() => saveFixturesToDatabase(), 0);
       
       return updatedFixtures;
     });
@@ -1655,7 +1697,7 @@ const handleCourtChange = (matchId, poolType, courtNumber) => {
       });
       
       // Save changes to localStorage
-      setTimeout(() => saveFixturesToLocalStorage(), 0);
+      setTimeout(() => saveFixturesToDatabase(), 0);
       
       return updatedFixtures;
     });
@@ -1777,28 +1819,6 @@ const getTeamName = (teamId, matchContext = null) => {
   }
   
   return team.playerName;
-};
-
-// Save fixtures to localStorage
-const saveFixturesToLocalStorage = (showToast = true) => {
-  try {
-    // Save fixtures
-    localStorage.setItem(`fixtures_${tournamentId}`, JSON.stringify(fixtures));
-    
-    // Save declared results
-    localStorage.setItem(`declaredResults_${tournamentId}`, JSON.stringify(declaredResults));
-    localStorage.setItem(`declaredResultsByPool_${tournamentId}`, JSON.stringify(declaredResultsByPool));
-    
-    // Save declared match IDs
-    localStorage.setItem(`declaredMatchIds_${tournamentId}`, JSON.stringify(declaredMatchIds));
-    
-    if (showToast) {
-      toast.success('Fixtures saved successfully!');
-    }
-  } catch (error) {
-    console.error('Error saving fixtures:', error);
-    toast.error('Failed to save fixtures');
-  }
 };
 
   // Add this useEffect after your other useEffect hooks
@@ -1951,6 +1971,89 @@ const loadFixturesFromLocalStorage = () => {
   }
 };
 
+// Save fixtures to database
+const saveFixturesToDatabase = async (showToast = true) => {
+  try {
+    // Transform fixtures to match backend model
+    const allFixtures = [];
+    // Helper to flatten and map fixtures
+    const mapFixtures = (arr, poolName) =>
+      arr.map(match => ({
+        pool: poolName,
+        teamA: match.franchise1?.franchiseName || '',
+        teamB: match.franchise2?.franchiseName || '',
+        scheduledTime: match.date ? new Date(match.date) : null,
+        court: match.court || 1,
+        result: match.eventMatches || [],
+        round: poolName === 'Knockout' ? match.round || '' : undefined,
+        poolData: poolName === 'Knockout' ? match.poolData || undefined : undefined,
+      }));
+    allFixtures.push(...mapFixtures(fixtures.poolA, 'A'));
+    allFixtures.push(...mapFixtures(fixtures.poolB, 'B'));
+    allFixtures.push(...mapFixtures(fixtures.knockout, 'Knockout'));
+    await saveFixtures(tournamentId, allFixtures);
+    if (showToast) {
+      toast.success('Fixtures saved to database!');
+    }
+  } catch (error) {
+    console.error('Error saving fixtures to database:', error);
+    toast.error('Failed to save fixtures to database');
+  }
+};
+
+// Load fixtures from database
+const loadFixturesFromDatabase = async () => {
+  try {
+    const { data } = await fetchFixtures(tournamentId);
+    if (data && Array.isArray(data) && data.length > 0) {
+      // Helper to find franchiseId by name
+      const findFranchiseIdByName = (name) => {
+        const found = franchises.find(f => f.franchiseName === name);
+        return found ? found._id : '';
+      };
+      // Transform backend fixtures to frontend structure
+      const mapBackendFixture = (f) => ({
+        id: f._id || '',
+        franchise1: { _id: f.teamAId || findFranchiseIdByName(f.teamA) || '', franchiseName: f.teamA },
+        franchise2: { _id: f.teamBId || findFranchiseIdByName(f.teamB) || '', franchiseName: f.teamB },
+        date: f.scheduledTime ? new Date(f.scheduledTime).toISOString().split('T')[0] : '',
+        time: '',
+        court: f.court || 1,
+        // Rehydrate eventName for each eventMatch
+        eventMatches: (f.eventMatches || f.result || []).map(em => ({
+          ...em,
+          eventName: em.eventName || em.eventType || (events.find(e => e._id === em.eventId)?.name ?? '')
+        })),
+        round: f.round || '',
+        poolData: f.poolData || undefined,
+      });
+      const poolA = data.filter(f => f.pool === 'A').map(mapBackendFixture);
+      const poolB = data.filter(f => f.pool === 'B').map(mapBackendFixture);
+      const knockout = data.filter(f => f.pool === 'Knockout').map(mapBackendFixture);
+      setFixtures({ poolA, poolB, knockout });
+      setShowFixtures(true);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error loading fixtures from database:', error);
+    return false;
+  }
+};
+
+// useEffect to load fixtures from database on mount
+useEffect(() => {
+  if (franchises.length > 0) {
+    loadFixturesFromDatabase();
+  }
+}, [tournamentId, franchises]);
+
+  // Log fixtures when loaded
+  useEffect(() => {
+    if (fixtures.poolA.length || fixtures.poolB.length || fixtures.knockout.length) {
+      console.log('Fixtures loaded:', fixtures);
+    }
+  }, [fixtures]);
 
   return (
     <div className="mb-6">
@@ -2085,7 +2188,7 @@ const loadFixturesFromLocalStorage = () => {
       
       <div className="flex items-center space-x-3">
         <button
-          onClick={saveFixturesToLocalStorage}
+          onClick={saveFixturesToDatabase}
           className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-1 px-3 rounded-md transition-colors"
         >
           Save Changes
@@ -2144,9 +2247,10 @@ const loadFixturesFromLocalStorage = () => {
       <div>
         <span className="text-white font-medium">
           {match.franchise1.franchiseName}
-          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-          )}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
           {declaredResultsByPool[selectedPool][match.id]?.isTie && (
             <span className="ml-1 text-blue-400" title="Tie">🤝</span>
           )}
@@ -2154,9 +2258,10 @@ const loadFixturesFromLocalStorage = () => {
         <span className="text-gray-300 mx-2">vs</span>
         <span className="text-white font-medium">
           {match.franchise2.franchiseName}
-          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-          )}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
           {declaredResultsByPool[selectedPool][match.id]?.isTie && (
             <span className="ml-1 text-blue-400" title="Tie">🤝</span>
           )}
@@ -2217,8 +2322,8 @@ const loadFixturesFromLocalStorage = () => {
                         <h4 className="text-white font-medium mb-2">Event Matches</h4>
                         
                         <div className="space-y-3">
-                          {match.eventMatches.map(eventMatch => (
-                            <div key={eventMatch.eventId} className="bg-gray-800 p-2 rounded-md">
+                          {match.eventMatches.map((eventMatch, idx) => (
+                            <div key={eventMatch._id || eventMatch.eventId || idx} className="bg-gray-800 p-2 rounded-md">
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
@@ -2228,15 +2333,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 1, eventMatch.team1)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-1`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2244,7 +2349,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise1.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2259,13 +2364,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 1, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2276,7 +2381,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 1
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 1);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection
@@ -2295,15 +2410,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 2, eventMatch.team2)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-2`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2311,7 +2426,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise2.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2326,13 +2441,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 2, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2343,7 +2458,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 2
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 2);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection
@@ -2405,9 +2530,10 @@ const loadFixturesFromLocalStorage = () => {
       <div>
         <span className="text-white font-medium">
           {match.franchise1.franchiseName}
-          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-          )}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
           {declaredResultsByPool[selectedPool][match.id]?.isTie && (
             <span className="ml-1 text-blue-400" title="Tie">🤝</span>
           )}
@@ -2415,9 +2541,10 @@ const loadFixturesFromLocalStorage = () => {
         <span className="text-gray-300 mx-2">vs</span>
         <span className="text-white font-medium">
           {match.franchise2.franchiseName}
-          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-            <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-          )}
+          {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
           {declaredResultsByPool[selectedPool][match.id]?.isTie && (
             <span className="ml-1 text-blue-400" title="Tie">🤝</span>
           )}
@@ -2478,8 +2605,8 @@ const loadFixturesFromLocalStorage = () => {
                         <h4 className="text-white font-medium mb-2">Event Matches</h4>
                         
                         <div className="space-y-3">
-                          {match.eventMatches.map(eventMatch => (
-                            <div key={eventMatch.eventId} className="bg-gray-800 p-2 rounded-md">
+                          {match.eventMatches.map((eventMatch, idx) => (
+                            <div key={eventMatch._id || eventMatch.eventId || idx} className="bg-gray-800 p-2 rounded-md">
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
@@ -2489,15 +2616,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 1, eventMatch.team1)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-1`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2505,7 +2632,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise1.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2520,13 +2647,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 1, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2537,7 +2664,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 1
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 1);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection
@@ -2556,15 +2693,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 2, eventMatch.team2)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-2`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2572,7 +2709,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise2.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2587,13 +2724,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 2, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2604,7 +2741,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 2
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 2);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection
@@ -2676,9 +2823,10 @@ const loadFixturesFromLocalStorage = () => {
           <span className="text-red-500 font-medium mr-2">{match.round}:</span>
           <span className="text-white font-medium">
             {match.franchise1.franchiseName}
-            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id && (
-              <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-            )}
+            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise1._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
             {declaredResultsByPool[selectedPool][match.id]?.isTie && (
               <span className="ml-1 text-blue-400" title="Tie">🤝</span>
             )}
@@ -2686,9 +2834,10 @@ const loadFixturesFromLocalStorage = () => {
           <span className="text-gray-300 mx-2">vs</span>
           <span className="text-white font-medium">
             {match.franchise2.franchiseName}
-            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id && (
-              <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
-            )}
+            {declaredResultsByPool[selectedPool][match.id]?.winner === match.franchise2._id &&
+ match.eventMatches.every(em => em.completed) && (
+  <span className="ml-1 text-yellow-400" title="Winner">🏆</span>
+)}
             {declaredResultsByPool[selectedPool][match.id]?.isTie && (
               <span className="ml-1 text-blue-400" title="Tie">🤝</span>
             )}
@@ -2766,8 +2915,8 @@ const loadFixturesFromLocalStorage = () => {
                         <h4 className="text-white font-medium mb-2">Event Matches</h4>
                         
                         <div className="space-y-3">
-                          {match.eventMatches.map(eventMatch => (
-                            <div key={eventMatch.eventId} className="bg-gray-800 p-2 rounded-md">
+                          {match.eventMatches.map((eventMatch, idx) => (
+                            <div key={eventMatch._id || eventMatch.eventId || idx} className="bg-gray-800 p-2 rounded-md">
                               <h5 className="text-white font-medium mb-1">{eventMatch.eventName}</h5>
                               
                               <div className="grid grid-cols-2 gap-2">
@@ -2777,15 +2926,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 1, eventMatch.team1)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 1, eventMatch.team1)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-1`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-1`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2793,7 +2942,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise1.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 1)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 1)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2808,13 +2957,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-1`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 1, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-1`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 1, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-1-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-1-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2825,7 +2974,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 1)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 1
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 1);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection
@@ -2844,15 +3003,15 @@ const loadFixturesFromLocalStorage = () => {
       <button
         type="button"
         className="w-full bg-gray-700 text-white border border-gray-600 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-left flex justify-between items-center"
-        onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+        onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
       >
-        <span>{getSelectedTeamsDisplay(match.id, eventMatch.eventId, 2, eventMatch.team2)}</span>
+        <span>{getSelectedTeamsDisplay(match.id, eventMatch._id, 2, eventMatch.team2)}</span>
         <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
           <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
         </svg>
       </button>
       
-      {dropdownOpen[`${match.id}-${eventMatch.eventId}-2`] && (
+      {dropdownOpen[`${match.id}-${eventMatch._id}-2`] && (
   <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
     <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
@@ -2860,7 +3019,7 @@ const loadFixturesFromLocalStorage = () => {
           Select {match.franchise2.franchiseName} Team
         </h3>
         <button
-          onClick={() => toggleDropdown(match.id, eventMatch.eventId, 2)}
+          onClick={() => toggleDropdown(match.id, eventMatch._id, 2)}
           className="text-gray-400 hover:text-white"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2875,13 +3034,13 @@ const loadFixturesFromLocalStorage = () => {
             <div key={team._id} className="flex items-center p-2 hover:bg-gray-700 rounded mb-2">
               <input
                 type="checkbox"
-                id={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
-                checked={selectedTeams[`${match.id}-${eventMatch.eventId}-2`]?.includes(team._id) || false}
-                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch.eventId, 2, team._id, e.target.checked)}
+                id={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
+                checked={selectedTeams[`${match.id}-${eventMatch._id}-2`]?.includes(team._id) || false}
+                onChange={(e) => handleTeamCheckboxChange(match.id, eventMatch._id, 2, team._id, e.target.checked)}
                 className="mr-2"
               />
               <label 
-                htmlFor={`team-${match.id}-${eventMatch.eventId}-2-${team._id}`}
+                htmlFor={`team-${match.id}-${eventMatch._id}-2-${team._id}`}
                 className="text-white text-sm cursor-pointer w-full"
               >
                 {team.playerName}
@@ -2892,7 +3051,17 @@ const loadFixturesFromLocalStorage = () => {
         
         <div className="flex justify-center">
           <button
-            onClick={() => handleMultiTeamAssignment(match.id, selectedPool, eventMatch.eventId, 2)}
+            onClick={() => {
+              const poolFixtures = fixtures[selectedPool === 'A' ? 'poolA' : selectedPool === 'B' ? 'poolB' : 'knockout'];
+              console.log('All fixture IDs in current pool:', poolFixtures.map(f => f.id), 'Current match.id:', match.id);
+              console.log('Confirm Selection clicked', {
+                matchId: match.id,
+                pool: selectedPool,
+                eventMatchId: eventMatch._id,
+                franchiseSide: 2
+              });
+              handleMultiTeamAssignment(match.id, selectedPool, eventMatch._id?.toString(), 2);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             Confirm Selection

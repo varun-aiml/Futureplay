@@ -163,9 +163,9 @@ export default function OrganizerLayout({ children }) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Navbar */}
-        <header className="bg-gray-800 border-b border-gray-700 py-4 px-6 flex items-center justify-between shadow-md">
+        <header className="bg-gray-800 border-b border-gray-700 py-4 px-4 sm:px-6 flex items-center justify-between shadow-md">
           <div className="flex items-center">
             {isMobile && (
               <button 
@@ -220,7 +220,7 @@ export default function OrganizerLayout({ children }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-900">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-900 min-w-0">
           {children}
         </main>
       </div>

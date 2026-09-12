@@ -25,43 +25,24 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create new user
+    // Create new user (automatically verified)
     const user = await User.create({
       name,
       email,
       phone,
       password,
+      isEmailVerified: true,
     });
-
-    // Generate OTP
-    const otp = user.generateOTP();
-    await user.save();
-
-    // Send OTP email
-    try {
-      await sendOTPEmail({
-        name: user.name,
-        email: user.email,
-        otp,
-      });
-    } catch (error) {
-      console.error("Email sending error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send verification email. Please try again.",
-      });
-    }
 
     // Generate JWT token
     const token = generateToken(user._id);
 
     // Remove password from output
     user.password = undefined;
-    user.otp = undefined;
 
     res.status(201).json({
       success: true,
-      message: "Registration successful! Please verify your email.",
+      message: "Registration successful!",
       token,
       user,
     });

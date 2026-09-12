@@ -4,16 +4,18 @@ const TournamentHeader = ({ tournament, handleEdit }) => {
   const navigate = useNavigate();
   
   return (
-    <div className="mb-6 flex justify-between items-center">
-      <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
-      <div className="flex space-x-3">
+    <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+      <h1 className="text-xl sm:text-2xl font-bold text-white break-words min-w-0">
+        {tournament.name}
+      </h1>
+      <div className="flex items-center space-x-3 flex-shrink-0 self-start sm:self-auto">
         <button
           onClick={handleEdit}
-          className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 flex items-center"
+          className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 sm:px-4 rounded-md transition duration-300 flex items-center text-sm sm:text-base"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 mr-1"
+            className="h-4 w-4 sm:h-5 sm:w-5 mr-1"
             viewBox="0 0 20 20"
             fill="currentColor"
           >
@@ -23,11 +25,11 @@ const TournamentHeader = ({ tournament, handleEdit }) => {
         </button>
         <button
           onClick={() => navigate("/organizer/tournaments")}
-          className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition duration-300 flex items-center"
+          className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 sm:px-4 rounded-md transition duration-300 flex items-center text-sm sm:text-base"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 mr-1"
+            className="h-4 w-4 sm:h-5 sm:w-5 mr-1"
             viewBox="0 0 20 20"
             fill="currentColor"
           >
