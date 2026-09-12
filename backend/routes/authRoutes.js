@@ -27,7 +27,14 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  (req, res, next) => {
+    const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+    const frontendUrl = (process.env.FRONTEND_URL || (isProd ? 'https://sportstek-frontend.onrender.com' : 'http://localhost:5173')).replace(/\/+$/, '');
+    passport.authenticate('google', {
+      session: false,
+      failureRedirect: `${frontendUrl}/organizer/login?error=oauth_failed`
+    })(req, res, next);
+  },
   (req, res) => {
     // Generate JWT token
     const token = require('../controllers/authcontroller').generateToken(req.user._id);
@@ -44,7 +51,8 @@ router.get(
     });
     
     // Redirect based on profile completion status
-    const frontendUrl = (process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://sportstek-frontend.onrender.com' : 'http://localhost:5173')).replace(/\/+$/, '');
+    const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+    const frontendUrl = (process.env.FRONTEND_URL || (isProd ? 'https://sportstek-frontend.onrender.com' : 'http://localhost:5173')).replace(/\/+$/, '');
 
     if (!req.user.profileComplete) {
       res.redirect(`${frontendUrl}/complete-profile?data=${encodeURIComponent(userData)}`);

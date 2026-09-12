@@ -14,18 +14,34 @@ passport.deserializeUser(async (id, done) => {
     done(error, null);
   }
 });
-console.log('clientID:', process.env.GOOGLE_CLIENT_ID);
+// Current active Google OAuth Client ID ("FuturePlay Web Client" - project futureplay-461207)
+const CURRENT_GOOGLE_CLIENT_ID = '590767155641-ikejvmm3i0e0gft4ic38u2l86joj925e.apps.googleusercontent.com';
+
+const getGoogleClientId = () => {
+  const envId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  if (!envId || envId.includes('79973044898')) {
+    return CURRENT_GOOGLE_CLIENT_ID;
+  }
+  return envId;
+};
+
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
+const getGoogleCallbackUrl = () => {
+  if (process.env.GOOGLE_CALLBACK_URL) {
+    return process.env.GOOGLE_CALLBACK_URL.trim();
+  }
+  return isProduction
+    ? 'https://sportstek.onrender.com/api/auth/google/callback'
+    : 'http://localhost:5000/api/auth/google/callback';
+};
 
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientID: getGoogleClientId(),
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL || (
-        process.env.NODE_ENV === 'production'
-          ? 'https://sportstek.onrender.com/api/auth/google/callback'
-          : 'http://localhost:5000/api/auth/google/callback'
-      ),
+      callbackURL: getGoogleCallbackUrl(),
       scope: ['profile', 'email']
     },
 
