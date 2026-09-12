@@ -34,6 +34,32 @@ const normalizeMatch = (match, index, defaultRound = 'ROUND 1', defaultRoundInde
   };
 };
 
+// Helper to check if a match has started scoring, finished, or has official results
+const hasMatchStartedOrScored = (m) => {
+  if (!m) return false;
+  // Check official status
+  if (['In Progress', 'Completed', 'Walkover'].includes(m.status)) {
+    return true;
+  }
+  // Check winner
+  if (m.winner && typeof m.winner === 'string' && m.winner.trim() !== '') {
+    return true;
+  }
+  // Check score
+  if (m.score && typeof m.score === 'string' && m.score.trim() !== '') {
+    return true;
+  }
+  // Check setScores
+  if (Array.isArray(m.setScores) && m.setScores.length > 0) {
+    const hasAnySetPoints = m.setScores.some(s => 
+      (s.team1Score !== undefined && Number(s.team1Score) > 0) || 
+      (s.team2Score !== undefined && Number(s.team2Score) > 0)
+    );
+    if (hasAnySetPoints) return true;
+  }
+  return false;
+};
+
 // Save or update event fixtures for a specific tournament event
 exports.saveEventFixtures = async (req, res) => {
   try {
@@ -57,6 +83,25 @@ exports.saveEventFixtures = async (req, res) => {
     const event = tournament.events.id(eventId);
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found in this tournament' });
+    }
+
+    // Protection rule: Check if an existing fixture in MongoDB has already started scoring or completed matches
+    const existingFixture = await EventFixture.findOne({ tournamentId, eventId });
+    if (existingFixture) {
+      const existingMatches = existingFixture.matches || [];
+      const existingRounds = existingFixture.rounds || [];
+
+      const hasStartedMatches = 
+        existingMatches.some(hasMatchStartedOrScored) ||
+        existingRounds.some(r => (r.matchups || []).some(hasMatchStartedOrScored));
+
+      if (hasStartedMatches) {
+        return res.status(400).json({
+          success: false,
+          code: 'FIXTURES_LOCKED_MATCHES_STARTED',
+          message: 'Fixtures cannot be regenerated because matches have already started. Existing scores and results must be preserved.'
+        });
+      }
     }
 
     let normalizedMatches = [];
@@ -189,9 +234,24 @@ exports.getEventFixtures = async (req, res) => {
 
     const eventFixture = await EventFixture.findOne({ tournamentId, eventId });
 
+    if (!eventFixture) {
+      return res.status(200).json({
+        success: true,
+        data: null,
+        isLocked: false,
+        startedMatchesCount: 0
+      });
+    }
+
+    const matches = eventFixture.matches || [];
+    const startedCount = matches.filter(hasMatchStartedOrScored).length;
+    const isLocked = startedCount > 0 || (eventFixture.rounds || []).some(r => (r.matchups || []).some(hasMatchStartedOrScored));
+
     return res.status(200).json({
       success: true,
-      data: eventFixture || null
+      data: eventFixture,
+      isLocked,
+      startedMatchesCount: startedCount
     });
   } catch (error) {
     console.error('Error fetching event fixtures:', error);

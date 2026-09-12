@@ -7,6 +7,7 @@ import {
   updateEvent,
   deleteEvent,
   saveEventFixtures,
+  getEventFixtures,
   getAllTournamentEventFixtures,
   assignUmpireToMatch
 } from "../services/tournamentService";
@@ -65,6 +66,24 @@ const TournamentDetail = () => {
   const [eventFixtures, setEventFixtures] = useState({});
   const [isGeneratingFixtures, setIsGeneratingFixtures] = useState(false);
   const [fixtureError, setFixtureError] = useState('');
+  const [showRegenBlockedModal, setShowRegenBlockedModal] = useState(false);
+  const [regenBlockedInfo, setRegenBlockedInfo] = useState(null);
+
+  // Helper to determine if any match in a fixture has started scoring or has official results
+  const isMatchStartedOrScored = (m) => {
+    if (!m) return false;
+    if (['In Progress', 'Completed', 'Walkover'].includes(m.status)) return true;
+    if (m.winner && typeof m.winner === 'string' && m.winner.trim() !== '') return true;
+    if (m.score && typeof m.score === 'string' && m.score.trim() !== '') return true;
+    if (Array.isArray(m.setScores) && m.setScores.length > 0) {
+      const hasPoints = m.setScores.some(s => 
+        (s.team1Score !== undefined && Number(s.team1Score) > 0) || 
+        (s.team2Score !== undefined && Number(s.team2Score) > 0)
+      );
+      if (hasPoints) return true;
+    }
+    return false;
+  };
   
   // New state for franchise fixtures view
   const [showFranchiseFixtures, setShowFranchiseFixtures] = useState(false);
@@ -158,13 +177,9 @@ const TournamentDetail = () => {
       toast.success("Fixture changes saved to database!");
     } catch (err) {
       console.error("Failed to save updated fixture:", err);
-      // Still update in local state as immediate fallback
-      setEventFixtures(prev => ({
-        ...prev,
-        [selectedFixtureEventId]: updatedFixture
-      }));
-      setFixtureData(updatedFixture);
-      toast.error(err.response?.data?.message || "Failed to persist fixture update to database");
+      const errMsg = err.response?.data?.message || "Failed to persist fixture update to database";
+      toast.error(errMsg);
+      throw err;
     }
   };
 
@@ -631,7 +646,7 @@ const TournamentDetail = () => {
     }
   };
   
-  // Function to generate fixtures based on real team data
+  // Function to generate fixtures based on real team data with MongoDB-backed scoring protection
   const generateFixturesFromTeams = async (eventId) => {
     setIsGeneratingFixtures(true);
     setFixtureError('');
@@ -641,6 +656,34 @@ const TournamentDetail = () => {
       const event = tournament.events.find(e => e._id === eventId);
       if (!event) {
         throw new Error('Event not found');
+      }
+
+      // Step 1: Strictly check MongoDB database for existing scored/in-progress matches
+      try {
+        const checkRes = await getEventFixtures(id, eventId);
+        const persistedFixture = checkRes.data?.data;
+        if (persistedFixture && Array.isArray(persistedFixture.matches) && persistedFixture.matches.length > 0) {
+          const startedMatches = persistedFixture.matches.filter(isMatchStartedOrScored);
+          if (startedMatches.length > 0 || checkRes.data?.isLocked) {
+            const completedCount = startedMatches.filter(m => m.status === 'Completed' || m.status === 'Walkover').length;
+            const inProgressCount = startedMatches.filter(m => m.status === 'In Progress').length;
+
+            setRegenBlockedInfo({
+              eventName: event.name || persistedFixture.eventName || 'Event',
+              totalMatches: persistedFixture.matches.length,
+              startedCount: startedMatches.length,
+              completedCount,
+              inProgressCount
+            });
+            setShowRegenBlockedModal(true);
+            setFixtureError('Fixtures cannot be regenerated because matches have already started. Existing scores and results must be preserved.');
+            toast.warn('Fixtures cannot be regenerated because matches have already started. Existing scores and results must be preserved.');
+            setIsGeneratingFixtures(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not verify fixture lock status from backend pre-check:', err);
       }
       
       // Fetch team data for the selected event
@@ -686,7 +729,24 @@ const TournamentDetail = () => {
       }
     } catch (error) {
       console.error('Error generating fixtures:', error);
-      setFixtureError(error.message || 'Failed to generate fixtures');
+      const errMsg = error.response?.data?.message || error.message || 'Failed to generate fixtures';
+      setFixtureError(errMsg);
+      if (error.response?.data?.code === 'FIXTURES_LOCKED_MATCHES_STARTED' || errMsg.includes('already started')) {
+        const event = tournament?.events?.find(e => e._id === eventId);
+        const curFixture = eventFixtures[eventId];
+        const allMatches = curFixture?.matches || [];
+        const startedMatches = allMatches.filter(isMatchStartedOrScored);
+        setRegenBlockedInfo({
+          eventName: event?.name || curFixture?.eventName || 'Event',
+          totalMatches: allMatches.length,
+          startedCount: startedMatches.length,
+          completedCount: startedMatches.filter(m => m.status === 'Completed' || m.status === 'Walkover').length,
+          inProgressCount: startedMatches.filter(m => m.status === 'In Progress').length
+        });
+        setShowRegenBlockedModal(true);
+      } else {
+        toast.error(errMsg);
+      }
     } finally {
       setIsGeneratingFixtures(false);
     }
@@ -701,9 +761,14 @@ const TournamentDetail = () => {
   };
 
   // Add a function to edit fixtures
-const editEventFixtures = (eventId) => {
-    if (eventFixtures[eventId]) {
-      setSelectedFixtureForEdit(eventFixtures[eventId]);
+  const editEventFixtures = (eventId) => {
+    const fixture = eventFixtures[eventId];
+    if (fixture) {
+      const hasStarted = (fixture.matches || []).some(isMatchStartedOrScored);
+      if (hasStarted) {
+        toast.warn("Matches have already started scoring. Bracket structures are locked to preserve official results.");
+      }
+      setSelectedFixtureForEdit(fixture);
       setShowFixtureEditor(true);
     }
   };
@@ -1652,23 +1717,45 @@ const editEventFixtures = (eventId) => {
                           </>
                         )}
 
-                        <button
-                          onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
-                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-3.5 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
-                          disabled={isGeneratingFixtures}
-                        >
-                          {isGeneratingFixtures ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
-                              <span>Generating...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>⚙️</span>
-                              <span>{eventFixtures[selectedFixtureEventId] ? 'Regenerate Fixtures' : 'Generate Fixtures'}</span>
-                            </>
-                          )}
-                        </button>
+                        {(() => {
+                          const curFix = eventFixtures[selectedFixtureEventId];
+                          const hasScoredMatches = (curFix?.matches || []).some(isMatchStartedOrScored);
+                          return (
+                            <button
+                              onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
+                              className={`text-white text-xs font-bold py-2 px-3.5 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm disabled:opacity-50 ${
+                                hasScoredMatches
+                                  ? 'bg-amber-700/80 hover:bg-amber-600 border border-amber-500/40'
+                                  : 'bg-red-600 hover:bg-red-700'
+                              }`}
+                              disabled={isGeneratingFixtures}
+                              title={
+                                hasScoredMatches
+                                  ? 'Matches have already started scoring. Fixtures are locked to protect official results.'
+                                  : curFix
+                                  ? 'Regenerate event fixtures'
+                                  : 'Generate event fixtures'
+                              }
+                            >
+                              {isGeneratingFixtures ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                                  <span>Checking Database...</span>
+                                </>
+                              ) : hasScoredMatches ? (
+                                <>
+                                  <span>🔒</span>
+                                  <span>Regenerate Fixtures (Locked)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>⚙️</span>
+                                  <span>{curFix ? 'Regenerate Fixtures' : 'Generate Fixtures'}</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2082,6 +2169,80 @@ const editEventFixtures = (eventId) => {
         {/* Umpires Tab Content */}
         {activeTab === "umpires" && (
           <UmpiresView tournamentId={id} />
+        )}
+
+        {/* Cannot Regenerate Fixtures Warning Modal */}
+        {showRegenBlockedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-gradient-to-b from-gray-800 to-gray-900 border border-amber-600/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-white animate-slideIn">
+              <div className="flex items-start justify-between border-b border-gray-700/80 pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl shadow-inner">
+                    🔒
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-white tracking-tight">Cannot Regenerate Fixtures</h3>
+                    <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+                      {regenBlockedInfo?.eventName || 'Official Tournament Event'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRegenBlockedModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-4 space-y-2">
+                <p className="text-sm font-bold text-amber-200">
+                  Fixtures cannot be regenerated because matches have already started. Existing scores and results must be preserved.
+                </p>
+                <p className="text-xs text-amber-300/80 leading-relaxed">
+                  One or more matches have already started or been completed. Regenerating fixtures could remove official scores and results. Existing fixtures will be preserved.
+                </p>
+              </div>
+
+              {regenBlockedInfo && (
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="bg-gray-900/80 border border-gray-700/80 rounded-xl p-2.5">
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Total Matches</span>
+                    <span className="text-base font-extrabold text-white">{regenBlockedInfo.totalMatches || 0}</span>
+                  </div>
+                  <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-2.5">
+                    <span className="text-emerald-400 block text-[10px] uppercase font-bold">Completed</span>
+                    <span className="text-base font-extrabold text-emerald-300">{regenBlockedInfo.completedCount || 0}</span>
+                  </div>
+                  <div className="bg-blue-950/40 border border-blue-800/60 rounded-xl p-2.5">
+                    <span className="text-blue-400 block text-[10px] uppercase font-bold">In Progress</span>
+                    <span className="text-base font-extrabold text-blue-300">{regenBlockedInfo.inProgressCount || 0}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRegenBlockedModal(false);
+                    setActiveTab("results");
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                >
+                  View Tournament Results
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRegenBlockedModal(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-lg shadow-emerald-900/30"
+                >
+                  Keep Existing Fixtures
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Fixture Editor Modal */}
