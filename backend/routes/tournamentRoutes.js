@@ -26,15 +26,19 @@ const {
   assignMatchUmpire,
   getUmpireAssignedMatches,
   getMatchForScoring,
-  submitMatchScore
+  submitMatchScore,
+  updateLiveMatchScore,
+  getTournamentLiveMatches
 } = require('../controllers/eventFixtureController');
 
 // Public routes
 router.get('/top', getTopTournaments);
 router.get('/all', getAllTournaments);
 router.get('/public/:id', getPublicTournamentById);
+router.get('/public/:id/live-matches', getTournamentLiveMatches);
+router.get('/:id/live-matches', getTournamentLiveMatches);
 
-// All routes are protected and require authentication
+// All routes below are protected and require authentication
 router.use(protect);
 
 // Umpire assigned matches route (Must be before parameterized :id routes)
@@ -83,6 +87,9 @@ router.route('/:id/events/:eventId/fixtures/matches/:matchId')
 
 router.route('/:id/events/:eventId/fixtures/matches/:matchId/assign-umpire')
   .patch(assignMatchUmpire);
+
+router.route('/:id/events/:eventId/fixtures/matches/:matchId/live-score')
+  .patch(updateLiveMatchScore);
 
 router.route('/:id/events/:eventId/fixtures/matches/:matchId/submit-score')
   .post(submitMatchScore);

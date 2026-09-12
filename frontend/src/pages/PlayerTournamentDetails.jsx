@@ -4,6 +4,7 @@ import { getTournamentById } from "../services/tournamentService";
 import { createBooking } from '../services/bookingService';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
+import LiveScoresSection from "../components/tournament/LiveScoresSection";
 
 const PlayerTournamentDetails = () => {
   const { id } = useParams();
@@ -312,6 +313,9 @@ const handleSubmitBooking = async (e) => {
             </div>
           </div>
         </div>
+
+        {/* Live Matches Real-Time Section */}
+        <LiveScoresSection tournamentId={id} />
 
         {/* Events Section */}
         <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl overflow-hidden shadow-lg mb-6 border border-gray-700">

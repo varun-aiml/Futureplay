@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getMatchForScoring, submitMatchScore } from '../services/tournamentService';
+import { getMatchForScoring, submitMatchScore, updateLiveMatchScore } from '../services/tournamentService';
 
 const UmpireScoring = () => {
   const { tournamentId, eventId, matchId } = useParams();
@@ -46,8 +46,9 @@ const UmpireScoring = () => {
           const fmt = event?.scoringFormat || '21-3';
           setScoringFormat(fmt);
           const [pts, sets] = fmt.split('-').map(Number);
-          setPointsToWin(pts || 21);
+          const maxPoints = pts || 21;
           const maxSets = sets || 3;
+          setPointsToWin(maxPoints);
           setNumberOfSets(maxSets);
 
           // If match already completed, load existing scores and mark as completed
@@ -60,8 +61,35 @@ const UmpireScoring = () => {
             if (match.winner) {
               setWinnerIndex(match.winner === match.player1?.name ? 0 : 1);
             }
+          } else if (Array.isArray(match.setScores) && match.setScores.length > 0) {
+            // Restore from persisted setScores array
+            const restoredScores = [];
+            for (let i = 0; i < maxSets; i++) {
+              const sObj = match.setScores[i];
+              if (sObj) {
+                restoredScores.push([Number(sObj.team1Score) || 0, Number(sObj.team2Score) || 0]);
+              } else {
+                restoredScores.push([0, 0]);
+              }
+            }
+            setScores(restoredScores);
+            let activeIdx = Math.min(match.setScores.length - 1, maxSets - 1);
+            // If the latest set was won, point active to next set
+            const lastSetScore = restoredScores[activeIdx];
+            if (isSetWonByScore(lastSetScore, maxPoints) !== null && activeIdx < maxSets - 1) {
+              activeIdx++;
+            }
+            setCurrentSet(Math.max(0, activeIdx));
           } else if (match.score && match.score !== '0-0') {
             parseExistingScore(match.score, maxSets);
+          } else if (match.status === 'Pending' || match.status === 'Scheduled') {
+            // Automatically mark match In Progress in MongoDB as umpire begins scoring
+            updateLiveMatchScore(tournamentId, eventId, matchId, {
+              score: '0-0',
+              setScores: [{ setNumber: 1, team1Score: 0, team2Score: 0 }],
+              currentSet: 1,
+              status: 'In Progress'
+            }).catch(() => {});
           }
         }
       } catch (error) {
@@ -92,14 +120,50 @@ const UmpireScoring = () => {
   };
 
   // Check if a set is won by either team
-  const isSetWon = (setScore) => {
+  const isSetWonByScore = (setScore, winPoints = pointsToWin) => {
+    if (!Array.isArray(setScore)) return null;
     const [t1, t2] = setScore;
-    if (t1 >= pointsToWin && (t1 - t2) >= 2) return 0;
-    if (t2 >= pointsToWin && (t2 - t1) >= 2) return 1;
+    if (t1 >= winPoints && (t1 - t2) >= 2) return 0;
+    if (t2 >= winPoints && (t2 - t1) >= 2) return 1;
     // Cap at 30 points if reached
     if (t1 >= 30) return 0;
     if (t2 >= 30) return 1;
     return null;
+  };
+
+  const isSetWon = (setScore) => isSetWonByScore(setScore, pointsToWin);
+
+  // Format score string (e.g. "21-18, 21-15")
+  const getFormattedScore = (scoreArr = scores, activeSet = currentSet) => {
+    const playedSets = [];
+    for (let i = 0; i < scoreArr.length; i++) {
+      if (scoreArr[i][0] > 0 || scoreArr[i][1] > 0 || i <= activeSet) {
+        playedSets.push(`${scoreArr[i][0]}-${scoreArr[i][1]}`);
+      }
+    }
+    return playedSets.length > 0 ? playedSets.join(', ') : '0-0';
+  };
+
+  // Synchronize live score point-by-point to backend & real-time broadcast
+  const syncLiveScoreToBackend = async (scoreMatrix, setIdx) => {
+    try {
+      const activeSetIdx = setIdx !== undefined ? setIdx : currentSet;
+      const formattedScore = getFormattedScore(scoreMatrix, activeSetIdx);
+      const formattedSets = scoreMatrix.slice(0, activeSetIdx + 1).map((s, idx) => ({
+        setNumber: idx + 1,
+        team1Score: s[0],
+        team2Score: s[1]
+      }));
+
+      await updateLiveMatchScore(tournamentId, eventId, matchId, {
+        score: formattedScore,
+        setScores: formattedSets,
+        currentSet: activeSetIdx + 1,
+        status: 'In Progress'
+      });
+    } catch (err) {
+      console.warn('Live score background sync notice:', err.message);
+    }
   };
 
   // Point Increment
@@ -128,6 +192,8 @@ const UmpireScoring = () => {
     const winTeam = isSetWon(currentScores[currentSet]);
     if (winTeam !== null) {
       handleSetFinished(winTeam, currentScores);
+    } else {
+      syncLiveScoreToBackend(currentScores, currentSet);
     }
   };
 
@@ -149,6 +215,7 @@ const UmpireScoring = () => {
     const currentScores = JSON.parse(JSON.stringify(scores));
     currentScores[currentSet][teamIndex]--;
     setScores(currentScores);
+    syncLiveScoreToBackend(currentScores, currentSet);
   };
 
   // Handle Set Finished
@@ -169,10 +236,13 @@ const UmpireScoring = () => {
       setWinnerIndex(wonByTeam);
       const winnerName = wonByTeam === 0 ? getPlayerName(1) : getPlayerName(2);
       toast.success(`Game & Match won by ${winnerName}!`);
+      syncLiveScoreToBackend(updatedScores, currentSet);
     } else if (currentSet < numberOfSets - 1) {
       // Advance to next set
-      setCurrentSet(prev => prev + 1);
+      const nextSetIdx = currentSet + 1;
+      setCurrentSet(nextSetIdx);
       toast.info(`Set ${currentSet + 1} completed. Moving to Set ${currentSet + 2}`);
+      syncLiveScoreToBackend(updatedScores, nextSetIdx);
     }
   };
 
@@ -187,17 +257,7 @@ const UmpireScoring = () => {
     setWinnerIndex(previousState.winnerIndex);
     setIsWalkover(false);
     setHistory(prev => prev.slice(0, -1));
-  };
-
-  // Format score string (e.g. "21-18, 21-15")
-  const getFormattedScore = (scoreArr = scores) => {
-    const playedSets = [];
-    for (let i = 0; i < scoreArr.length; i++) {
-      if (scoreArr[i][0] > 0 || scoreArr[i][1] > 0 || i <= currentSet) {
-        playedSets.push(`${scoreArr[i][0]}-${scoreArr[i][1]}`);
-      }
-    }
-    return playedSets.join(', ');
+    syncLiveScoreToBackend(previousState.scores, previousState.currentSet);
   };
 
   // Get player names

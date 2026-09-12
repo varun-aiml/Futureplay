@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const http = require('http');
+const { Server } = require('socket.io');
 
 dotenv.config();
 const session = require('express-session');
@@ -19,6 +21,48 @@ const fixtureRoutes = require('./routes/fixtureRoutes');
 connectDB();
 
 const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS settings matching Express
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        'http://localhost:5173', 
+        'https://sportstek-frontend.onrender.com'
+      ];
+
+      const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin);
+
+      if (isLocalNetwork || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true
+  }
+});
+
+// Attach io to Express app so controllers can access it via req.app.get('io')
+app.set('io', io);
+
+// Socket.IO room management for tournament live scoring
+io.on('connection', (socket) => {
+  socket.on('join:tournament', (tournamentId) => {
+    if (tournamentId) {
+      socket.join(`tournament_${tournamentId}`);
+    }
+  });
+
+  socket.on('leave:tournament', (tournamentId) => {
+    if (tournamentId) {
+      socket.leave(`tournament_${tournamentId}`);
+    }
+  });
+});
 
 // Middleware
 app.use(cors({
@@ -80,4 +124,4 @@ app.use((err, req, res, next) => {
 
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT} (0.0.0.0)`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT} (0.0.0.0)`));

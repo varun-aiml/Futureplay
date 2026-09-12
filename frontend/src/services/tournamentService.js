@@ -159,3 +159,10 @@ export const getMatchForScoring = (tournamentId, eventId, matchId) =>
 
 export const submitMatchScore = (tournamentId, eventId, matchId, scoreData) =>
   api.post(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}/submit-score`, scoreData);
+
+// Real-time live scoring APIs
+export const updateLiveMatchScore = (tournamentId, eventId, matchId, liveScoreData) =>
+  api.patch(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}/live-score`, liveScoreData);
+
+export const getTournamentLiveMatches = (tournamentId) =>
+  api.get(`/tournaments/public/${tournamentId}/live-matches`);

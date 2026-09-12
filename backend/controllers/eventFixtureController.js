@@ -800,6 +800,33 @@ exports.submitMatchScore = async (req, res) => {
     eventFixture.markModified('rounds');
     await eventFixture.save();
 
+    // Real-time broadcast for match completion
+    const io = req.app.get('io');
+    if (io) {
+      const completionPayload = {
+        tournamentId,
+        eventId,
+        matchId: match._id.toString(),
+        matchNumber: match.matchNumber,
+        player1: match.player1,
+        player2: match.player2,
+        team1: match.team1 || match.player1?.name || 'Player 1',
+        team2: match.team2 || match.player2?.name || 'Player 2',
+        score: match.score,
+        winner: match.winner,
+        setScores: match.setScores || [],
+        status: match.status,
+        completedAt: match.completedAt,
+        court: match.court,
+        round: match.round,
+        eventName: eventFixture.eventName,
+        eventType: eventFixture.eventType,
+        matchType: eventFixture.matchType
+      };
+      io.to(`tournament_${tournamentId}`).emit('match:completed', completionPayload);
+      io.emit('match:completed', completionPayload);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Official match score submitted successfully',
@@ -813,6 +840,175 @@ exports.submitMatchScore = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error submitting match score',
+      error: error.message
+    });
+  }
+};
+
+// Update live match score point-by-point (Authorized umpire or organizer)
+exports.updateLiveMatchScore = async (req, res) => {
+  try {
+    const { id: tournamentId, eventId, matchId } = req.params;
+    const { score, setScores, currentSet, status } = req.body;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const eventFixture = await EventFixture.findOne({ tournamentId, eventId });
+    if (!eventFixture) {
+      return res.status(404).json({ success: false, message: 'Event fixture not found' });
+    }
+
+    const match = eventFixture.matches.id(matchId);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found in fixture' });
+    }
+
+    // Authorization: Assigned umpire or tournament organizer
+    const isOrganizer = tournament.organizer.toString() === req.user._id.toString();
+    const isAssignedUmpire = match.umpire && match.umpire.toString() === req.user._id.toString();
+
+    if (!isOrganizer && !isAssignedUmpire) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to score this match'
+      });
+    }
+
+    // If match is already marked completed or walkover, don't allow modifying via live score
+    if (match.status === 'Completed' || match.status === 'Walkover') {
+      return res.status(400).json({
+        success: false,
+        message: 'This match is already completed.'
+      });
+    }
+
+    // Update match state in MongoDB
+    match.status = status || 'In Progress';
+    if (score !== undefined) match.score = score;
+    if (Array.isArray(setScores)) match.setScores = setScores;
+
+    // Sync match update in rounds matchups
+    if (Array.isArray(eventFixture.rounds)) {
+      for (const round of eventFixture.rounds) {
+        if (Array.isArray(round.matchups)) {
+          const roundMatch = round.matchups.id(matchId);
+          if (roundMatch) {
+            roundMatch.status = match.status;
+            if (score !== undefined) roundMatch.score = match.score;
+            if (Array.isArray(setScores)) roundMatch.setScores = match.setScores;
+          }
+        }
+      }
+    }
+
+    // Mark EventFixture as In Progress if it was Generated
+    if (eventFixture.status === 'Generated') {
+      eventFixture.status = 'In Progress';
+    }
+
+    eventFixture.markModified('matches');
+    eventFixture.markModified('rounds');
+    await eventFixture.save();
+
+    // Prepare real-time broadcast payload
+    const livePayload = {
+      tournamentId,
+      eventId,
+      matchId: match._id.toString(),
+      matchNumber: match.matchNumber,
+      round: match.round,
+      roundIndex: match.roundIndex,
+      court: match.court,
+      player1: match.player1,
+      player2: match.player2,
+      team1: match.team1 || match.player1?.name || 'Player 1',
+      team2: match.team2 || match.player2?.name || 'Player 2',
+      currentSet: currentSet !== undefined ? currentSet : 1,
+      score: match.score,
+      setScores: match.setScores || [],
+      status: match.status,
+      eventName: eventFixture.eventName,
+      eventType: eventFixture.eventType,
+      matchType: eventFixture.matchType,
+      umpireName: match.umpireName,
+      updatedAt: new Date()
+    };
+
+    // Broadcast to tournament room and global listeners
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`tournament_${tournamentId}`).emit('match:live_score', livePayload);
+      io.emit('match:live_score', livePayload);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Live score updated successfully',
+      data: livePayload
+    });
+  } catch (error) {
+    console.error('Error updating live match score:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error updating live score',
+      error: error.message
+    });
+  }
+};
+
+// Get all currently live (In Progress) matches for a tournament (Public)
+exports.getTournamentLiveMatches = async (req, res) => {
+  try {
+    const { id: tournamentId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const fixtures = await EventFixture.find({ tournamentId });
+    const liveMatches = [];
+
+    for (const fixture of fixtures) {
+      const inProgressMatches = (fixture.matches || []).filter(m => m.status === 'In Progress');
+      for (const m of inProgressMatches) {
+        liveMatches.push({
+          tournamentId: fixture.tournamentId,
+          eventId: fixture.eventId,
+          eventName: fixture.eventName,
+          eventType: fixture.eventType,
+          matchType: fixture.matchType,
+          matchId: m._id.toString(),
+          matchNumber: m.matchNumber,
+          round: m.round,
+          roundIndex: m.roundIndex,
+          court: m.court,
+          player1: m.player1,
+          player2: m.player2,
+          team1: m.team1 || m.player1?.name || 'Player 1',
+          team2: m.team2 || m.player2?.name || 'Player 2',
+          score: m.score,
+          setScores: m.setScores || [],
+          status: m.status,
+          umpireName: m.umpireName,
+          updatedAt: m.updatedAt || new Date()
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: liveMatches.length,
+      data: liveMatches
+    });
+  } catch (error) {
+    console.error('Error fetching tournament live matches:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error fetching live matches',
       error: error.message
     });
   }
