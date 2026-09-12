@@ -42,3 +42,24 @@ export const completeGoogleSignup = async (userData) => {
   const response = await api.post('/auth/complete-profile', userData);
   return response.data;
 };
+
+// Umpire authentication and management
+export const umpireLogin = async (email, password) => {
+  const response = await api.post('/auth/umpire/login', { email, password });
+  if (response.data.token) {
+    localStorage.setItem('token', response.data.token);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+  }
+  return response.data;
+};
+
+export const createUmpire = async (umpireData) => {
+  const response = await api.post('/auth/umpire', umpireData);
+  return response.data;
+};
+
+export const getOrganizerUmpires = async (tournamentId) => {
+  const url = tournamentId ? `/auth/umpire?tournamentId=${tournamentId}` : '/auth/umpire';
+  const response = await api.get(url);
+  return response.data;
+};

@@ -2,7 +2,7 @@ import { useState } from 'react';
 // Remove this import since we won't be using the library
 // import { SingleEliminationBracket, Match, SVGViewer } from '@g-loot/react-tournament-brackets';
 
-const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
+const FixtureModal = ({ fixtureData, setShowFixtureModal, organizerUmpires = [], onAssignUmpire = null }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn">
@@ -68,42 +68,103 @@ const FixtureModal = ({ fixtureData, setShowFixtureModal }) => {
           {/* Tournament Structure Visualization */}
           <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 p-5 rounded-lg mb-6 border border-gray-700 shadow-lg">
             <h3 className="text-xl font-bold text-center mb-6 text-white">
-              Tournament Progression
+              Tournament Progression & Umpire Assignments
             </h3>
 
             {/* Always use the custom visualization instead of the library */}
             <div className="overflow-x-auto pb-4">
               <div className="flex space-x-4 md:space-x-6 justify-start min-w-max">
-                {/* Knockout/League: Use matches grouped by round */}
-                {((fixtureData.matchType === 'Knockout' || fixtureData.matchType === 'League') && Array.isArray(fixtureData.matches)) ? (
-                  Array.from(new Set(fixtureData.matches.map(m => m.round))).map((roundName, index) => (
+                {/* Render matches grouped by round */}
+                {(Array.isArray(fixtureData.matches) && fixtureData.matches.length > 0) ? (
+                  Array.from(new Set(fixtureData.matches.map(m => m.round)))
+                    .sort((a, b) => {
+                      const mA = fixtureData.matches.find(m => m.round === a);
+                      const mB = fixtureData.matches.find(m => m.round === b);
+                      return (mA?.roundIndex || 0) - (mB?.roundIndex || 0);
+                    })
+                    .map((roundName, index, arr) => (
                     <div key={index} className="relative flex flex-col items-center">
-                      <div className="w-[280px] text-center transform transition-all duration-300 hover:scale-105">
+                      <div className="w-[300px] text-center transform transition-all duration-300 hover:scale-102">
                         <div className="bg-gradient-to-r from-red-700 to-red-600 p-3 rounded-t-lg shadow-lg">
-                          <h4 className="font-bold text-white">{roundName}</h4>
+                          <h4 className="font-bold text-white uppercase tracking-wider">{roundName}</h4>
                         </div>
                         <div className="bg-gray-800 p-4 rounded-b-lg border border-gray-600 shadow-inner">
-                          <p className="text-white font-medium text-lg">
+                          <p className="text-white font-medium text-sm mb-3">
                             {fixtureData.matches.filter(m => m.round === roundName).length} {fixtureData.matches.filter(m => m.round === roundName).length === 1 ? 'Match' : 'Matches'}
                           </p>
-                          <div className="mt-4 space-y-3">
-                            {fixtureData.matches.filter(m => m.round === roundName).map((match, idx) => (
-                              <div key={idx} className="bg-gray-700 rounded-xl p-3 text-sm">
-                                <div className="flex justify-between items-center mb-1">
-                                  <div className="flex-1">
-                                    <span className="font-medium text-white">{match.player1?.name || '-'}</span>
+                          <div className="space-y-3">
+                            {fixtureData.matches.filter(m => m.round === roundName).map((match, idx) => {
+                              const isCompleted = match.status === 'Completed' || match.status === 'Walkover';
+                              const mId = match._id || match.matchId;
+                              return (
+                                <div key={mId || idx} className="bg-gray-900/90 border border-gray-700 rounded-xl p-3 text-sm text-left shadow-sm">
+                                  <div className="flex justify-between items-center text-[10px] text-gray-400 mb-1.5 border-b border-gray-800 pb-1">
+                                    <span className="font-bold text-red-400">Match #{match.matchNumber || idx + 1}</span>
+                                    <span className={`px-1.5 py-0.5 rounded font-bold ${
+                                      match.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                                      match.status === 'In Progress' ? 'bg-amber-500/20 text-amber-400' :
+                                      match.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-400' :
+                                      'bg-gray-700 text-gray-400'
+                                    }`}>
+                                      {match.status || 'Pending'}
+                                    </span>
                                   </div>
-                                  <span className="text-gray-400 text-xs px-2">vs</span>
-                                  <div className="flex-1 text-right">
-                                    <span className="font-medium text-white">{match.player2?.name || '-'}</span>
+
+                                  <div className="space-y-1 mb-1.5">
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className={`truncate font-semibold ${match.winner && match.winner === (match.player1?.name || match.team1) ? 'text-emerald-400 font-bold' : 'text-white'}`}>
+                                        {match.player1?.name || match.team1 || 'TBD'}
+                                      </span>
+                                      {match.winner && match.winner === (match.player1?.name || match.team1) && (
+                                        <span className="text-[10px] text-emerald-400 font-bold ml-1">🏆</span>
+                                      )}
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className={`truncate font-semibold ${match.winner && match.winner === (match.player2?.name || match.team2) ? 'text-emerald-400 font-bold' : 'text-white'}`}>
+                                        {match.player2?.name || match.team2 || 'TBD'}
+                                      </span>
+                                      {match.winner && match.winner === (match.player2?.name || match.team2) && (
+                                        <span className="text-[10px] text-emerald-400 font-bold ml-1">🏆</span>
+                                      )}
+                                    </div>
                                   </div>
+
+                                  {match.score && (
+                                    <div className="text-center font-mono text-[11px] text-emerald-400 mb-2 bg-emerald-950/40 rounded py-0.5 border border-emerald-800/40">
+                                      {match.score}
+                                    </div>
+                                  )}
+
+                                  {/* Umpire Assignment Dropdown in Bracket */}
+                                  {organizerUmpires && organizerUmpires.length > 0 && onAssignUmpire && (
+                                    <div className="pt-2 border-t border-gray-800 flex items-center justify-between gap-1.5">
+                                      <span className="text-[10px] text-gray-400 whitespace-nowrap">Umpire:</span>
+                                      <select
+                                        disabled={isCompleted}
+                                        value={match.umpire?._id || match.umpire || ''}
+                                        onChange={(e) => {
+                                          if (mId && onAssignUmpire) {
+                                            onAssignUmpire(mId, e.target.value);
+                                          }
+                                        }}
+                                        className="w-full text-[11px] bg-gray-800 border border-gray-700 text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-500 truncate disabled:opacity-50"
+                                      >
+                                        <option value="">-- Unassigned --</option>
+                                        {organizerUmpires.map(u => (
+                                          <option key={u._id} value={u._id}>
+                                            🏸 {u.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
-                      {index < Array.from(new Set(fixtureData.matches.map(m => m.round))).length - 1 && (
+                      {index < arr.length - 1 && (
                         <div className="flex items-center justify-center h-full mt-4 mb-4">
                           <div className="relative w-16 h-10 flex items-center justify-center">
                             <div className="absolute w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700"></div>

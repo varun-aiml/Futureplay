@@ -17,10 +17,17 @@ const protect = async (req, res, next) => {
       // Get user from token
       req.user = await User.findById(decoded.id).select('-password');
 
-      next();
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Not authorized, user not found'
+        });
+      }
+
+      return next();
     } catch (error) {
       console.error('Auth middleware error:', error);
-      res.status(401).json({
+      return res.status(401).json({
         success: false,
         message: 'Not authorized, token failed'
       });
@@ -28,7 +35,7 @@ const protect = async (req, res, next) => {
   }
 
   if (!token) {
-    res.status(401).json({
+    return res.status(401).json({
       success: false,
       message: 'Not authorized, no token'
     });
@@ -39,10 +46,11 @@ const protect = async (req, res, next) => {
 
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user?.role || 'organizer';
+    if (!roles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        message: `Role ${req.user.role} is not authorized to access this resource`
+        message: `Role ${userRole} is not authorized to access this resource`
       });
     }
     next();

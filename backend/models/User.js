@@ -9,16 +9,15 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: [true, 'Email or username is required'],
     unique: true,
     lowercase: true,
-    trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+    trim: true
   },
   phone: {
     type: String,
     required: function(){
-      return !this.googleId;
+      return !this.googleId && this.role !== 'umpire';
     },
     trim: true
   },
@@ -27,7 +26,7 @@ const userSchema = new mongoose.Schema({
     required: function(){
       return !this.googleId;
     },
-    minlength: [8, 'Password must be at least 8 characters long'],
+    minlength: [6, 'Password must be at least 6 characters long'],
     select: false // Don't return password in queries by default
   },
   googleId: {
@@ -41,8 +40,13 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['organizer', 'player', 'admin'],
+    enum: ['organizer', 'player', 'admin', 'umpire'],
     default: 'organizer'
+  },
+  createdByOrganizer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
   isEmailVerified: {
     type: Boolean,

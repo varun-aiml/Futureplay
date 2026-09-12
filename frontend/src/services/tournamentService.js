@@ -146,3 +146,16 @@ export const getAllTournamentEventFixtures = (tournamentId) =>
 
 export const updateEventFixtureMatch = (tournamentId, eventId, matchId, matchData) =>
   api.patch(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}`, matchData);
+
+// Umpire match assignment & mobile scoring APIs
+export const assignUmpireToMatch = (tournamentId, eventId, matchId, umpireId) =>
+  api.patch(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}/assign-umpire`, { umpireId });
+
+export const getUmpireAssignedMatches = () =>
+  api.get('/tournaments/umpire/assigned-matches');
+
+export const getMatchForScoring = (tournamentId, eventId, matchId) =>
+  api.get(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}`);
+
+export const submitMatchScore = (tournamentId, eventId, matchId, scoreData) =>
+  api.post(`/tournaments/${tournamentId}/events/${eventId}/fixtures/matches/${matchId}/submit-score`, scoreData);

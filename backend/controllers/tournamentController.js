@@ -464,46 +464,111 @@ exports.getPublicTournamentById = async (req, res) => {
 // Fixture generation functions
 exports.generateKnockoutFixtures = (fixtures, participants) => {
   const participantIds = participants.map(p => p.toString());
-  const matches = [];
-  const totalRounds = Math.ceil(Math.log2(participantIds.length));
-  
-  // First round matches
-  const firstRoundMatches = Math.pow(2, totalRounds - 1);
-  const byes = firstRoundMatches * 2 - participantIds.length;
-  
-  let matchNumber = 1;
-  for (let i = 0; i < firstRoundMatches; i++) {
-    const match = {
-      round: 1,
-      matchNumber: matchNumber++,
-      team1: i < participantIds.length ? participantIds[i] : 'BYE',
-      team2: i < participantIds.length - byes ? participantIds[participantIds.length - 1 - i] : 'BYE',
-      winner: '',
-      score: ''
-    };
-    
-    // Auto-advance if there's a bye
-    if (match.team1 === 'BYE') match.winner = match.team2;
-    if (match.team2 === 'BYE') match.winner = match.team1;
-    
-    matches.push(match);
+  const n = participantIds.length;
+  if (n < 2) {
+    fixtures.matches = [];
+    return fixtures;
   }
-  
-  // Create placeholder matches for subsequent rounds
-  for (let round = 2; round <= totalRounds; round++) {
-    const roundMatches = Math.pow(2, totalRounds - round);
-    for (let i = 0; i < roundMatches; i++) {
+
+  const matches = [];
+  const totalRounds = Math.ceil(Math.log2(n));
+  const perfectBracketSize = Math.pow(2, totalRounds);
+  const byes = perfectBracketSize - n;
+  const numRound1Matches = n - Math.pow(2, totalRounds - 1);
+
+  const getKnockoutRoundName = (roundIdx, total) => {
+    const roundsFromEnd = total - 1 - roundIdx;
+    if (roundsFromEnd === 0) return 'FINAL';
+    if (roundsFromEnd === 1) return 'SEMI FINAL';
+    if (roundsFromEnd === 2) return 'QUARTER FINAL';
+    if (roundsFromEnd === 3) return 'ROUND OF 16';
+    if (roundsFromEnd === 4) return 'ROUND OF 32';
+    return `ROUND ${roundIdx + 1}`;
+  };
+
+  let matchNumber = 1;
+
+  if (byes === 0) {
+    // Exact power of two: 0 byes!
+    const r1Name = getKnockoutRoundName(0, totalRounds);
+    for (let i = 0; i < n / 2; i++) {
       matches.push({
-        round: round,
+        round: r1Name,
+        roundIndex: 1,
         matchNumber: matchNumber++,
-        team1: '',
-        team2: '',
+        team1: participantIds[i * 2],
+        team2: participantIds[i * 2 + 1],
         winner: '',
         score: ''
       });
     }
+
+    for (let r = 1; r < totalRounds; r++) {
+      const rMatches = Math.pow(2, totalRounds - 1 - r);
+      const rName = getKnockoutRoundName(r, totalRounds);
+      for (let i = 0; i < rMatches; i++) {
+        matches.push({
+          round: rName,
+          roundIndex: r + 1,
+          matchNumber: matchNumber++,
+          team1: 'TBD',
+          team2: 'TBD',
+          winner: '',
+          score: ''
+        });
+      }
+    }
+  } else {
+    // Non-power of two: Top 'byes' teams get byes directly into Round 2
+    const r1Name = getKnockoutRoundName(0, totalRounds);
+    for (let i = 0; i < numRound1Matches; i++) {
+      matches.push({
+        round: r1Name,
+        roundIndex: 1,
+        matchNumber: matchNumber++,
+        team1: participantIds[byes + i * 2],
+        team2: participantIds[byes + i * 2 + 1],
+        winner: '',
+        score: ''
+      });
+    }
+
+    const r2Matches = Math.pow(2, totalRounds - 2);
+    const r2Name = getKnockoutRoundName(1, totalRounds);
+    let byeIndexUsed = 0;
+
+    for (let i = 0; i < r2Matches; i++) {
+      const p1 = byeIndexUsed < byes ? participantIds[byeIndexUsed++] : 'TBD';
+      const p2 = byeIndexUsed < byes ? participantIds[byeIndexUsed++] : 'TBD';
+
+      matches.push({
+        round: r2Name,
+        roundIndex: 2,
+        matchNumber: matchNumber++,
+        team1: p1,
+        team2: p2,
+        winner: '',
+        score: ''
+      });
+    }
+
+    for (let r = 2; r < totalRounds; r++) {
+      const rMatches = Math.pow(2, totalRounds - 1 - r);
+      const rName = getKnockoutRoundName(r, totalRounds);
+      for (let i = 0; i < rMatches; i++) {
+        matches.push({
+          round: rName,
+          roundIndex: r + 1,
+          matchNumber: matchNumber++,
+          team1: 'TBD',
+          team2: 'TBD',
+          winner: '',
+          score: ''
+        });
+      }
+    }
   }
-  
+
   fixtures.matches = matches;
   return fixtures;
 };
@@ -609,23 +674,71 @@ exports.updatePoolArrangements = async (req, res) => {
 
 exports.generateLeagueFixtures = (fixtures, participants) => {
   const participantIds = participants.map(p => p.toString());
+  const n = participantIds.length;
+  if (n < 2) {
+    fixtures.matches = [];
+    return fixtures;
+  }
+
   const matches = [];
-  
   let matchNumber = 1;
-  // Round-robin tournament: each participant plays against all others
-  for (let i = 0; i < participantIds.length; i++) {
-    for (let j = i + 1; j < participantIds.length; j++) {
+
+  if (n % 2 === 1) {
+    // Odd number of participants: n rounds, 1 bye per round, (n - 1) / 2 matches per round
+    const totalRounds = n;
+    for (let r = 0; r < totalRounds; r++) {
+      const byeIdx = n - 1 - r;
+      for (let k = 1; k <= (n - 1) / 2; k++) {
+        const team1Idx = (byeIdx - k + n) % n;
+        const team2Idx = (byeIdx + k) % n;
+        const firstIdx = Math.min(team1Idx, team2Idx);
+        const secondIdx = Math.max(team1Idx, team2Idx);
+
+        matches.push({
+          round: `ROUND ${r + 1}`,
+          roundIndex: r + 1,
+          matchNumber: matchNumber++,
+          team1: participantIds[firstIdx],
+          team2: participantIds[secondIdx],
+          winner: '',
+          score: ''
+        });
+      }
+    }
+  } else {
+    // Even number of participants: n - 1 rounds, 0 byes, n / 2 matches per round
+    const totalRounds = n - 1;
+    for (let r = 0; r < totalRounds; r++) {
+      const partnerIdx = 1 + r;
       matches.push({
-        round: 1, // All matches are in one round for league
+        round: `ROUND ${r + 1}`,
+        roundIndex: r + 1,
         matchNumber: matchNumber++,
-        team1: participantIds[i],
-        team2: participantIds[j],
+        team1: participantIds[0],
+        team2: participantIds[partnerIdx],
         winner: '',
         score: ''
       });
+
+      for (let k = 1; k <= (n - 2) / 2; k++) {
+        const t1 = 1 + ((r - k + (n - 1)) % (n - 1));
+        const t2 = 1 + ((r + k) % (n - 1));
+        const firstIdx = Math.min(t1, t2);
+        const secondIdx = Math.max(t1, t2);
+
+        matches.push({
+          round: `ROUND ${r + 1}`,
+          roundIndex: r + 1,
+          matchNumber: matchNumber++,
+          team1: participantIds[firstIdx],
+          team2: participantIds[secondIdx],
+          winner: '',
+          score: ''
+        });
+      }
     }
   }
-  
+
   fixtures.matches = matches;
   return fixtures;
 };

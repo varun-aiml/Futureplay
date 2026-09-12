@@ -53,6 +53,16 @@ const TabNavigation = ({ activeTab, setActiveTab }) => {
           Results
         </button>
         <button
+          onClick={() => setActiveTab("umpires")}
+          className={`py-2 px-3 sm:px-4 font-medium text-sm sm:text-base whitespace-nowrap flex-shrink-0 transition-colors ${
+            activeTab === "umpires"
+              ? "text-red-500 border-b-2 border-red-500"
+              : "text-gray-400 hover:text-white"
+          }`}
+        >
+          Umpires
+        </button>
+        <button
           onClick={() => setActiveTab("franchiseOwners")}
           className={`py-2 px-3 sm:px-4 font-medium text-sm sm:text-base whitespace-nowrap flex-shrink-0 transition-colors ${
             activeTab === "franchiseOwners"

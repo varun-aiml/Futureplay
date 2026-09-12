@@ -54,6 +54,33 @@ const matchSchema = new mongoose.Schema({
   group: {
     type: String,
     default: null
+  },
+  umpire: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  umpireName: {
+    type: String,
+    default: null
+  },
+  setScores: [{
+    setNumber: { type: Number },
+    team1Score: { type: Number, default: 0 },
+    team2Score: { type: Number, default: 0 }
+  }],
+  nextMatchNumber: {
+    type: Number,
+    default: null
+  },
+  nextMatchSlot: {
+    type: String,
+    enum: ['player1', 'player2', null],
+    default: null
+  },
+  completedAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

@@ -1,12 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const passport = require('passport');
-const { register, login, verifyOTP, resendOTP, completeProfile } = require('../controllers/authcontroller.js');
-const { protect } = require('../middleware/authMiddleware');
+const {
+  register,
+  login,
+  verifyOTP,
+  resendOTP,
+  completeProfile,
+  createUmpire,
+  getOrganizerUmpires,
+  umpireLogin
+} = require('../controllers/authcontroller.js');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/umpire/login', umpireLogin);
+
+// Organizer-controlled Umpire routes
+router.post('/umpire', protect, authorize('organizer'), createUmpire);
+router.get('/umpire', protect, authorize('organizer', 'umpire'), getOrganizerUmpires);
 
 // Google OAuth routes
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

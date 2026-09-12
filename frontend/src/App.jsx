@@ -27,6 +27,10 @@ import Players from "./pages/Players";
 import FranchiseRegistration from "./pages/FranchiseRegistration";
 import Auctions from "./pages/Auctions";
 import SuperAuction from "./pages/SuperAuction";
+import UmpireLogin from "./pages/UmpireLogin";
+import UmpireDashboard from "./pages/UmpireDashboard";
+import UmpireScoring from "./pages/UmpireScoring";
+import UmpirePrivateRoute from "./components/UmpirePrivateRoute";
 
 function App() {
   return (
@@ -127,6 +131,25 @@ function App() {
               }
             />
             
+            {/* Umpire routes */}
+            <Route path="/umpire/login" element={<UmpireLogin />} />
+            <Route
+              path="/umpire/dashboard"
+              element={
+                <UmpirePrivateRoute>
+                  <UmpireDashboard />
+                </UmpirePrivateRoute>
+              }
+            />
+            <Route
+              path="/umpire/match/:tournamentId/:eventId/:matchId"
+              element={
+                <UmpirePrivateRoute>
+                  <UmpireScoring />
+                </UmpirePrivateRoute>
+              }
+            />
+
             {/* Add more routes as needed */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

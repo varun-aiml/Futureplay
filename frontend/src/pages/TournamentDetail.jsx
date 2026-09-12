@@ -7,8 +7,10 @@ import {
   updateEvent,
   deleteEvent,
   saveEventFixtures,
-  getAllTournamentEventFixtures
+  getAllTournamentEventFixtures,
+  assignUmpireToMatch
 } from "../services/tournamentService";
+import { getOrganizerUmpires } from "../services/authService";
 import { getTournamentBookings } from '../services/bookingService';
 import FixtureEditor from "../components/tournament/FixtureEditor";
 import { toast } from "react-toastify";
@@ -24,6 +26,7 @@ import TeamsView from "../components/tournament/TeamsView";
 import FranchiseOwnersView from "../components/tournament/FranchiseOwnersView";
 import FranchiseFixturesView from '../components/tournament/FranchiseFixturesView';
 import ResultsView from '../components/tournament/ResultsView';
+import UmpiresView from '../components/tournament/UmpiresView';
 
 const TournamentDetail = () => {
   const { id } = useParams();
@@ -33,6 +36,7 @@ const TournamentDetail = () => {
   const [error, setError] = useState("");
   const [showImageModal, setShowImageModal] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [organizerUmpires, setOrganizerUmpires] = useState([]);
 
   // Event creation states
   const [showEventForm, setShowEventForm] = useState(false);
@@ -65,6 +69,24 @@ const TournamentDetail = () => {
   // New state for franchise fixtures view
   const [showFranchiseFixtures, setShowFranchiseFixtures] = useState(false);
 
+  // Umpire match assignment UI states
+  const [assigningMatchId, setAssigningMatchId] = useState(null);
+  const [matchRoundFilter, setMatchRoundFilter] = useState('all');
+  const [matchUmpireFilter, setMatchUmpireFilter] = useState('all');
+  const [matchSearchQuery, setMatchSearchQuery] = useState('');
+
+  const reloadUmpires = async () => {
+    try {
+      const uRes = await getOrganizerUmpires(id);
+      if (uRes?.success) {
+        setOrganizerUmpires(uRes.umpires || []);
+        toast.info("Umpire list refreshed");
+      }
+    } catch (err) {
+      console.error("Error reloading umpires:", err);
+    }
+  };
+
   useEffect(() => {
     const fetchTournamentAndFixtures = async () => {
       try {
@@ -74,7 +96,11 @@ const TournamentDetail = () => {
         ]);
 
         if (tournamentRes.status === 'fulfilled') {
-          setTournament(tournamentRes.value.data.data);
+          const tourneyData = tournamentRes.value.data.data;
+          setTournament(tourneyData);
+          if (tourneyData?.events && tourneyData.events.length > 0) {
+            setSelectedFixtureEventId(prev => prev || tourneyData.events[0]._id);
+          }
         } else {
           console.error("Error fetching tournament:", tournamentRes.reason);
           setError("Failed to load tournament details");
@@ -82,10 +108,17 @@ const TournamentDetail = () => {
 
         if (fixturesRes.status === 'fulfilled' && fixturesRes.value.data?.data) {
           const fixturesMap = {};
+          let eventWithFixtures = null;
           fixturesRes.value.data.data.forEach(fixture => {
             fixturesMap[fixture.eventId] = fixture;
+            if (!eventWithFixtures && fixture.matches && fixture.matches.length > 0) {
+              eventWithFixtures = fixture.eventId;
+            }
           });
           setEventFixtures(fixturesMap);
+          if (eventWithFixtures) {
+            setSelectedFixtureEventId(prev => prev || eventWithFixtures);
+          }
         }
 
         setIsLoading(false);
@@ -96,7 +129,19 @@ const TournamentDetail = () => {
       }
     };
 
+    const loadUmpires = async () => {
+      try {
+        const uRes = await getOrganizerUmpires(id);
+        if (uRes?.success) {
+          setOrganizerUmpires(uRes.umpires || []);
+        }
+      } catch (err) {
+        console.error("Error loading umpires:", err);
+      }
+    };
+
     fetchTournamentAndFixtures();
+    loadUmpires();
   }, [id]);
 
   // Handle fixture updates from editor with MongoDB persistence
@@ -120,6 +165,66 @@ const TournamentDetail = () => {
       }));
       setFixtureData(updatedFixture);
       toast.error(err.response?.data?.message || "Failed to persist fixture update to database");
+    }
+  };
+
+  // Handle match umpire assignment
+  const handleAssignUmpire = async (matchId, umpireId) => {
+    try {
+      setAssigningMatchId(matchId?.toString());
+      const res = await assignUmpireToMatch(id, selectedFixtureEventId, matchId, umpireId || null);
+      if (res.data?.success) {
+        toast.success(res.data.message);
+        setEventFixtures(prev => {
+          const cur = prev[selectedFixtureEventId];
+          if (!cur || !Array.isArray(cur.matches)) return prev;
+          const updatedMatches = cur.matches.map(m => {
+            const mId = (m._id || m.matchId)?.toString();
+            if (mId === matchId?.toString()) {
+              return {
+                ...m,
+                umpire: res.data.data.umpire,
+                umpireName: res.data.data.umpireName,
+                status: res.data.data.status
+              };
+            }
+            return m;
+          });
+          return {
+            ...prev,
+            [selectedFixtureEventId]: {
+              ...cur,
+              matches: updatedMatches
+            }
+          };
+        });
+
+        // Keep fixtureData in sync if open in modal
+        setFixtureData(prev => {
+          if (!prev || !Array.isArray(prev.matches)) return prev;
+          const updatedMatches = prev.matches.map(m => {
+            const mId = (m._id || m.matchId)?.toString();
+            if (mId === matchId?.toString()) {
+              return {
+                ...m,
+                umpire: res.data.data.umpire,
+                umpireName: res.data.data.umpireName,
+                status: res.data.data.status
+              };
+            }
+            return m;
+          });
+          return {
+            ...prev,
+            matches: updatedMatches
+          };
+        });
+      }
+    } catch (err) {
+      console.error("Error assigning umpire to match:", err);
+      toast.error(err.response?.data?.message || "Failed to assign umpire");
+    } finally {
+      setAssigningMatchId(null);
     }
   };
 
@@ -300,84 +405,55 @@ const TournamentDetail = () => {
   // Optimized Knockout Tournament Generator
   const generateKnockoutFixture = (numTeams) => {
     const rounds = [];
-    let totalMatches = numTeams - 1; // Total matches in a knockout = teams - 1
-    let totalByes = 0;
-
-    // Calculate the number of rounds needed
+    const totalMatches = numTeams - 1;
     const totalRounds = Math.ceil(Math.log2(numTeams));
-
-    // Calculate the perfect bracket size (next power of 2)
     const perfectBracketSize = Math.pow(2, totalRounds);
+    const totalByes = perfectBracketSize - numTeams;
 
-    // Calculate if we need a preliminary round
-    const needsPreliminaryRound =
-      numTeams > Math.pow(2, totalRounds - 1) && numTeams < perfectBracketSize;
+    const getRoundName = (roundIdx, total) => {
+      const roundsFromEnd = total - 1 - roundIdx;
+      if (roundsFromEnd === 0) return 'FINAL';
+      if (roundsFromEnd === 1) return 'SEMI FINAL';
+      if (roundsFromEnd === 2) return 'QUARTER FINAL';
+      if (roundsFromEnd === 3) return 'ROUND OF 16';
+      if (roundsFromEnd === 4) return 'ROUND OF 32';
+      return `ROUND ${roundIdx + 1}`;
+    };
 
-    // Calculate how many teams play in the preliminary round
-    const teamsInPreliminaryRound = needsPreliminaryRound
-      ? (numTeams - Math.pow(2, totalRounds - 1)) * 2
-      : 0;
-    const matchesInPreliminaryRound = teamsInPreliminaryRound / 2;
-
-    // Teams that advance directly to the first main round (get a bye in preliminary)
-    const teamsWithFirstRoundBye = needsPreliminaryRound
-      ? numTeams - teamsInPreliminaryRound
-      : 0;
-
-    // Add preliminary round if needed
-    if (needsPreliminaryRound) {
-      rounds.push({
-        name: "PRELIMINARY ROUND",
-        matches: matchesInPreliminaryRound,
-        byes: 0,
-        teamsInRound: teamsInPreliminaryRound,
-        teamsAdvancing: matchesInPreliminaryRound,
-        details: `${teamsInPreliminaryRound} teams compete, ${teamsWithFirstRoundBye} teams get a bye to next round`,
-      });
-    }
-
-    // Calculate teams in first main round
-    let teamsInFirstMainRound = needsPreliminaryRound
-      ? matchesInPreliminaryRound + teamsWithFirstRoundBye
-      : numTeams;
-
-    // Generate main knockout rounds
-    let remainingTeams = teamsInFirstMainRound;
-    let roundNumber = needsPreliminaryRound ? 2 : 1;
-
-    while (remainingTeams > 1) {
-      const matchesInRound = remainingTeams / 2;
-
-      let roundName = "";
-      if (remainingTeams === 2) {
-        roundName = "FINAL";
-      } else if (remainingTeams === 4) {
-        roundName = "SEMI FINAL";
-      } else if (remainingTeams === 8) {
-        roundName = "QUARTER FINAL";
-      } else if (remainingTeams === 16) {
-        roundName = "PRE-QUARTER FINAL";
-      } else if (remainingTeams === 32) {
-        roundName = "ROUND OF 32";
-      } else if (remainingTeams === 64) {
-        roundName = "ROUND OF 64";
-      } else if (remainingTeams === 128) {
-        roundName = "ROUND OF 128";
-      } else {
-        roundName = `ROUND ${roundNumber}`;
+    if (totalByes === 0) {
+      for (let r = 0; r < totalRounds; r++) {
+        const matchesInRound = Math.pow(2, totalRounds - 1 - r);
+        rounds.push({
+          name: getRoundName(r, totalRounds),
+          matches: matchesInRound,
+          byes: 0,
+          teamsInRound: matchesInRound * 2,
+          teamsAdvancing: matchesInRound,
+          details: `${matchesInRound * 2} teams → ${matchesInRound} winners advance`,
+        });
       }
-
+    } else {
+      const numR1Matches = numTeams - Math.pow(2, totalRounds - 1);
       rounds.push({
-        name: roundName,
-        matches: matchesInRound,
-        byes: 0,
-        teamsInRound: remainingTeams,
-        teamsAdvancing: matchesInRound,
-        details: `${remainingTeams} teams → ${matchesInRound} winners advance`,
+        name: totalRounds === 2 ? 'ROUND 1' : getRoundName(0, totalRounds),
+        matches: numR1Matches,
+        byes: totalByes,
+        teamsInRound: numR1Matches * 2,
+        teamsAdvancing: numR1Matches,
+        details: `${numR1Matches * 2} teams compete, ${totalByes} team${totalByes === 1 ? ' gets a bye' : 's get byes'} to next round`,
       });
 
-      roundNumber++;
-      remainingTeams = matchesInRound;
+      for (let r = 1; r < totalRounds; r++) {
+        const matchesInRound = Math.pow(2, totalRounds - 1 - r);
+        rounds.push({
+          name: getRoundName(r, totalRounds),
+          matches: matchesInRound,
+          byes: 0,
+          teamsInRound: matchesInRound * 2,
+          teamsAdvancing: matchesInRound,
+          details: `${matchesInRound * 2} teams → ${matchesInRound} winners advance`,
+        });
+      }
     }
 
     return {
@@ -387,7 +463,7 @@ const TournamentDetail = () => {
       totalMatches,
       totalByes,
       rounds,
-      summary: `${numTeams} teams will compete in ${rounds.length} rounds with ${totalMatches} total matches`,
+      summary: `${numTeams} teams will compete in ${rounds.length} rounds with ${totalMatches} total matches${totalByes > 0 ? ` (${totalByes} byes)` : ''}`,
     };
   };
 
@@ -634,192 +710,418 @@ const editEventFixtures = (eventId) => {
   
   // Generate knockout fixtures with real team data
   const generateKnockoutFixtureWithTeams = (teams, event) => {
-    let totalMatches = teams.length - 1;
-    const totalRounds = Math.ceil(Math.log2(teams.length));
+    const n = teams.length;
+    if (n < 2) return null;
+
+    const totalMatches = n - 1;
+    const totalRounds = Math.ceil(Math.log2(n));
     const perfectBracketSize = Math.pow(2, totalRounds);
-    const needsPreliminaryRound = teams.length > Math.pow(2, totalRounds - 1) && teams.length < perfectBracketSize;
-    const teamsInPreliminaryRound = needsPreliminaryRound
-      ? (teams.length - Math.pow(2, totalRounds - 1)) * 2
-      : 0;
-    const matchesInPreliminaryRound = teamsInPreliminaryRound / 2;
-    const teamsWithFirstRoundBye = needsPreliminaryRound
-      ? teams.length - teamsInPreliminaryRound
-      : 0;
+    const byes = perfectBracketSize - n;
+    const numRound1Matches = n - Math.pow(2, totalRounds - 1);
 
-    let matches = [];
-    let roundNames = [];
-    let roundSizes = [];
+    const getRoundName = (roundIdx, total) => {
+      const roundsFromEnd = total - 1 - roundIdx;
+      if (roundsFromEnd === 0) return 'FINAL';
+      if (roundsFromEnd === 1) return 'SEMI FINAL';
+      if (roundsFromEnd === 2) return 'QUARTER FINAL';
+      if (roundsFromEnd === 3) return 'ROUND OF 16';
+      if (roundsFromEnd === 4) return 'ROUND OF 32';
+      return `ROUND ${roundIdx + 1}`;
+    };
 
-    // Build round names and sizes
-    let remainingTeams = needsPreliminaryRound
-      ? matchesInPreliminaryRound + teamsWithFirstRoundBye
-      : teams.length;
-    let roundNumber = 1;
-    if (needsPreliminaryRound) {
-      roundNames.push('PRELIMINARY ROUND');
-      roundSizes.push(teamsInPreliminaryRound);
-    }
-    while (remainingTeams > 1) {
-      let roundName = '';
-      if (remainingTeams === 2) roundName = 'FINAL';
-      else if (remainingTeams === 4) roundName = 'SEMI FINAL';
-      else if (remainingTeams === 8) roundName = 'QUARTER FINAL';
-      else if (remainingTeams === 16) roundName = 'PRE-QUARTER FINAL';
-      else if (remainingTeams === 32) roundName = 'ROUND OF 32';
-      else if (remainingTeams === 64) roundName = 'ROUND OF 64';
-      else if (remainingTeams === 128) roundName = 'ROUND OF 128';
-      else roundName = `ROUND ${roundNumber}`;
-      roundNames.push(roundName);
-      roundSizes.push(remainingTeams);
-      remainingTeams = remainingTeams / 2;
-      roundNumber++;
-    }
+    const allMatches = [];
+    const rounds = [];
+    let globalMatchNumber = 1;
 
-    // 1. Preliminary round (if needed)
-    if (needsPreliminaryRound) {
-      for (let i = 0; i < teamsInPreliminaryRound; i += 2) {
-        matches.push({
-          matchNumber: matches.length + 1,
-          round: 'PRELIMINARY ROUND',
+    if (byes === 0) {
+      // Exact power of two (2, 4, 8, 16...): NO byes!
+      const matchesByRound = [];
+
+      // Round 1
+      const r1Name = getRoundName(0, totalRounds);
+      const r1MatchCount = n / 2;
+      const r1Matches = [];
+
+      for (let i = 0; i < r1MatchCount; i++) {
+        const team1 = teams[i * 2];
+        const team2 = teams[i * 2 + 1];
+        const m = {
+          matchNumber: globalMatchNumber++,
+          round: r1Name,
           roundIndex: 1,
-          player1: { name: teams[i].playerName, id: teams[i]._id ? teams[i]._id.toString() : null },
-          player2: teams[i + 1] ? { name: teams[i + 1].playerName, id: teams[i + 1]._id ? teams[i + 1]._id.toString() : null } : { name: 'BYE', id: null },
+          team1: team1.playerName,
+          team2: team2.playerName,
+          player1: { name: team1.playerName, id: team1._id ? team1._id.toString() : null },
+          player2: { name: team2.playerName, id: team2._id ? team2._id.toString() : null },
           status: 'Pending',
           score: '',
-        });
+          winner: null,
+          umpire: null,
+          umpireName: null,
+          court: null,
+          scheduledTime: null,
+          nextMatchNumber: null,
+          nextMatchSlot: null
+        };
+        r1Matches.push(m);
+        allMatches.push(m);
       }
-    }
+      matchesByRound.push(r1Matches);
 
-    // 2. First main round (with byes if needed)
-    let firstMainRoundTeams = [];
-    if (needsPreliminaryRound) {
-      // Winners from preliminary + byes
-      // We don't know winners yet, so use 'TBD' for preliminary winners
-      for (let i = 0; i < matchesInPreliminaryRound; i++) {
-        firstMainRoundTeams.push({ name: 'TBD', id: null });
-      }
-      for (let i = teamsInPreliminaryRound; i < teams.length; i++) {
-        firstMainRoundTeams.push({ name: teams[i].playerName, id: teams[i]._id ? teams[i]._id.toString() : null });
-      }
-    } else {
-      // All teams play in first round
-      firstMainRoundTeams = teams.map(t => ({ name: t.playerName, id: t._id ? t._id.toString() : null }));
-    }
+      // Subsequent rounds
+      for (let r = 1; r < totalRounds; r++) {
+        const rName = getRoundName(r, totalRounds);
+        const rMatchCount = Math.pow(2, totalRounds - 1 - r);
+        const curRMatches = [];
 
-    let roundIdx = needsPreliminaryRound ? 1 : 0;
-    let teamsForRound = firstMainRoundTeams;
-    for (; roundIdx < roundNames.length; roundIdx++) {
-      const roundName = roundNames[roundIdx];
-      const numMatches = Math.floor(teamsForRound.length / 2);
-      for (let i = 0; i < numMatches; i++) {
-        let p1 = teamsForRound[i * 2] || { name: 'TBD', id: null };
-        let p2 = teamsForRound[i * 2 + 1] || { name: 'TBD', id: null };
-        // Only show real names in first main round, otherwise always 'TBD'
-        if (roundIdx > (needsPreliminaryRound ? 1 : 0)) {
-          p1 = { name: 'TBD', id: null };
-          p2 = { name: 'TBD', id: null };
+        for (let i = 0; i < rMatchCount; i++) {
+          const m = {
+            matchNumber: globalMatchNumber++,
+            round: rName,
+            roundIndex: r + 1,
+            team1: 'TBD',
+            team2: 'TBD',
+            player1: { name: 'TBD', id: null },
+            player2: { name: 'TBD', id: null },
+            status: 'Pending',
+            score: '',
+            winner: null,
+            umpire: null,
+            umpireName: null,
+            court: null,
+            scheduledTime: null,
+            nextMatchNumber: null,
+            nextMatchSlot: null
+          };
+          curRMatches.push(m);
+          allMatches.push(m);
         }
-        matches.push({
-          matchNumber: matches.length + 1,
-          round: roundName,
-          roundIndex: roundIdx + 1,
-          player1: p1,
-          player2: p2,
+
+        const prevMatches = matchesByRound[r - 1];
+        prevMatches.forEach((prevM, pIdx) => {
+          const targetMatchIdx = Math.floor(pIdx / 2);
+          prevM.nextMatchNumber = curRMatches[targetMatchIdx].matchNumber;
+          prevM.nextMatchSlot = (pIdx % 2 === 0) ? 'player1' : 'player2';
+        });
+
+        matchesByRound.push(curRMatches);
+      }
+
+      matchesByRound.forEach((mList, rIdx) => {
+        rounds.push({
+          name: getRoundName(rIdx, totalRounds),
+          matches: mList.length,
+          byes: 0,
+          teamsInRound: mList.length * 2,
+          details: `${mList.length} match${mList.length === 1 ? '' : 'es'}`,
+          matchups: mList
+        });
+      });
+
+    } else {
+      // Non-power of two: Top 'byes' teams get byes into Round 2
+      const matchesByRound = [];
+
+      // Round 1
+      const r1Name = totalRounds === 2 ? 'ROUND 1' : getRoundName(0, totalRounds);
+      const r1Matches = [];
+
+      for (let i = 0; i < numRound1Matches; i++) {
+        const team1 = teams[byes + i * 2];
+        const team2 = teams[byes + i * 2 + 1];
+        const m = {
+          matchNumber: globalMatchNumber++,
+          round: r1Name,
+          roundIndex: 1,
+          team1: team1.playerName,
+          team2: team2.playerName,
+          player1: { name: team1.playerName, id: team1._id ? team1._id.toString() : null },
+          player2: { name: team2.playerName, id: team2._id ? team2._id.toString() : null },
           status: 'Pending',
           score: '',
-        });
+          winner: null,
+          umpire: null,
+          umpireName: null,
+          court: null,
+          scheduledTime: null,
+          nextMatchNumber: null,
+          nextMatchSlot: null
+        };
+        r1Matches.push(m);
+        allMatches.push(m);
       }
-      // Prepare for next round: all winners are 'TBD' until matches are played
-      teamsForRound = Array(numMatches).fill({ name: 'TBD', id: null });
+      matchesByRound.push(r1Matches);
+
+      // Round 2
+      const r2Name = getRoundName(1, totalRounds);
+      const r2MatchCount = Math.pow(2, totalRounds - 2);
+      const r2Matches = [];
+      let byeIdxUsed = 0;
+
+      for (let i = 0; i < r2MatchCount; i++) {
+        let p1Name = 'TBD';
+        let p1Id = null;
+        let p2Name = 'TBD';
+        let p2Id = null;
+
+        if (byeIdxUsed < byes) {
+          p1Name = teams[byeIdxUsed].playerName;
+          p1Id = teams[byeIdxUsed]._id ? teams[byeIdxUsed]._id.toString() : null;
+          byeIdxUsed++;
+        }
+
+        if (byeIdxUsed < byes) {
+          p2Name = teams[byeIdxUsed].playerName;
+          p2Id = teams[byeIdxUsed]._id ? teams[byeIdxUsed]._id.toString() : null;
+          byeIdxUsed++;
+        }
+
+        const m = {
+          matchNumber: globalMatchNumber++,
+          round: r2Name,
+          roundIndex: 2,
+          team1: p1Name,
+          team2: p2Name,
+          player1: { name: p1Name, id: p1Id },
+          player2: { name: p2Name, id: p2Id },
+          status: 'Pending',
+          score: '',
+          winner: null,
+          umpire: null,
+          umpireName: null,
+          court: null,
+          scheduledTime: null,
+          nextMatchNumber: null,
+          nextMatchSlot: null
+        };
+        r2Matches.push(m);
+        allMatches.push(m);
+      }
+
+      // Link Round 1 winners to Round 2 TBD slots
+      r1Matches.forEach((r1M) => {
+        for (const r2M of r2Matches) {
+          if (r2M.player1.name === 'TBD' && !r1Matches.some(other => other.nextMatchNumber === r2M.matchNumber && other.nextMatchSlot === 'player1')) {
+            r1M.nextMatchNumber = r2M.matchNumber;
+            r1M.nextMatchSlot = 'player1';
+            break;
+          } else if (r2M.player2.name === 'TBD' && !r1Matches.some(other => other.nextMatchNumber === r2M.matchNumber && other.nextMatchSlot === 'player2')) {
+            r1M.nextMatchNumber = r2M.matchNumber;
+            r1M.nextMatchSlot = 'player2';
+            break;
+          }
+        }
+      });
+
+      matchesByRound.push(r2Matches);
+
+      // Subsequent rounds from Round 3 onwards
+      for (let r = 2; r < totalRounds; r++) {
+        const rName = getRoundName(r, totalRounds);
+        const rMatchCount = Math.pow(2, totalRounds - 1 - r);
+        const curRMatches = [];
+
+        for (let i = 0; i < rMatchCount; i++) {
+          const m = {
+            matchNumber: globalMatchNumber++,
+            round: rName,
+            roundIndex: r + 1,
+            team1: 'TBD',
+            team2: 'TBD',
+            player1: { name: 'TBD', id: null },
+            player2: { name: 'TBD', id: null },
+            status: 'Pending',
+            score: '',
+            winner: null,
+            umpire: null,
+            umpireName: null,
+            court: null,
+            scheduledTime: null,
+            nextMatchNumber: null,
+            nextMatchSlot: null
+          };
+          curRMatches.push(m);
+          allMatches.push(m);
+        }
+
+        const prevMatches = matchesByRound[r - 1];
+        prevMatches.forEach((prevM, pIdx) => {
+          const targetMatchIdx = Math.floor(pIdx / 2);
+          prevM.nextMatchNumber = curRMatches[targetMatchIdx].matchNumber;
+          prevM.nextMatchSlot = (pIdx % 2 === 0) ? 'player1' : 'player2';
+        });
+
+        matchesByRound.push(curRMatches);
+      }
+
+      matchesByRound.forEach((mList, rIdx) => {
+        rounds.push({
+          name: rIdx === 0 && totalRounds === 2 ? 'ROUND 1' : getRoundName(rIdx, totalRounds),
+          matches: mList.length,
+          byes: rIdx === 0 ? byes : 0,
+          teamsInRound: rIdx === 0 ? numRound1Matches * 2 : mList.length * 2,
+          details: rIdx === 0
+            ? `${mList.length} match${mList.length === 1 ? '' : 'es'}, ${byes} team${byes === 1 ? ' gets a bye' : 's get byes'}`
+            : `${mList.length} match${mList.length === 1 ? '' : 'es'}`,
+          matchups: mList
+        });
+      });
     }
 
     return {
       matchType: 'Knockout',
-      numTeams: teams.length,
-      totalRounds: roundNames.length,
+      numTeams: n,
+      totalRounds: rounds.length,
       totalMatches,
-      matches,
-      summary: `${teams.length} teams will compete in ${roundNames.length} rounds with ${totalMatches} total matches`,
+      totalByes: byes,
+      matches: allMatches,
+      rounds,
+      summary: `${n} teams will compete in ${rounds.length} rounds with ${totalMatches} total matches${byes > 0 ? ` (${byes} byes)` : ''}`,
       eventName: event.name,
     };
   };
   
   // Generate league fixtures with real team data
   const generateLeagueFixtureWithTeams = (teams, event) => {
+    const n = teams.length;
+    if (n < 2) return null;
+
     const rounds = [];
-    const totalMatches = (teams.length * (teams.length - 1)) / 2;
-    const totalRounds = teams.length % 2 === 0 ? teams.length - 1 : teams.length;
-    
-    // Create a schedule using round-robin algorithm
-    const schedule = [];
-    const teamIds = teams.map(team => team._id);
-    
-    if (teams.length % 2 === 1) {
-      // Add a dummy team for bye if odd number of teams
-      teamIds.push('bye');
-    }
-    
-    const halfSize = teamIds.length / 2;
-    
-    // Generate rounds
-    for (let round = 0; round < teamIds.length - 1; round++) {
-      const roundMatches = [];
-      
-      for (let match = 0; match < halfSize; match++) {
-        const home = match;
-        const away = teamIds.length - 1 - match;
-        
-        // Skip matches with the dummy team (bye)
-        if (teamIds[home] !== 'bye' && teamIds[away] !== 'bye') {
-          const homeTeam = teams.find(team => team._id === teamIds[home]);
-          const awayTeam = teams.find(team => team._id === teamIds[away]);
-          
-          roundMatches.push({
-            matchNumber: roundMatches.length + 1,
-            round: `ROUND ${round + 1}`,
-            roundIndex: round + 1,
-            team1: homeTeam.playerName,
-            team2: awayTeam.playerName,
-            player1: { name: homeTeam.playerName, id: homeTeam._id ? homeTeam._id.toString() : null },
-            player2: { name: awayTeam.playerName, id: awayTeam._id ? awayTeam._id.toString() : null },
+    const allMatches = [];
+    const totalMatches = (n * (n - 1)) / 2;
+    const totalRounds = n % 2 === 0 ? n - 1 : n;
+    let globalMatchNumber = 1;
+
+    if (n % 2 === 1) {
+      // Odd number of teams: n rounds, 1 bye per round, (n - 1) / 2 matches per round
+      // For n = 3 (Team A, Team B, Team C):
+      // Round 1 (Team C has bye): Match 1: Team A vs Team B
+      // Round 2 (Team B has bye): Match 2: Team A vs Team C
+      // Round 3 (Team A has bye): Match 3: Team B vs Team C
+      for (let r = 0; r < totalRounds; r++) {
+        const byeIdx = n - 1 - r;
+        const byeTeam = teams[byeIdx];
+        const roundMatchups = [];
+
+        for (let k = 1; k <= (n - 1) / 2; k++) {
+          const t1Idx = (byeIdx - k + n) % n;
+          const t2Idx = (byeIdx + k) % n;
+          const firstIdx = Math.min(t1Idx, t2Idx);
+          const secondIdx = Math.max(t1Idx, t2Idx);
+
+          const team1 = teams[firstIdx];
+          const team2 = teams[secondIdx];
+
+          const matchObj = {
+            matchNumber: globalMatchNumber++,
+            round: `ROUND ${r + 1}`,
+            roundIndex: r + 1,
+            team1: team1.playerName,
+            team2: team2.playerName,
+            player1: { name: team1.playerName, id: team1._id ? team1._id.toString() : null },
+            player2: { name: team2.playerName, id: team2._id ? team2._id.toString() : null },
             score: '',
-            status: 'Pending'
-          });
+            status: 'Pending',
+            winner: null,
+            umpire: null,
+            umpireName: null,
+            court: null,
+            scheduledTime: null
+          };
+
+          roundMatchups.push(matchObj);
+          allMatches.push(matchObj);
         }
+
+        rounds.push({
+          name: `ROUND ${r + 1}`,
+          matches: roundMatchups.length,
+          byes: 1,
+          teamsInRound: n,
+          details: `${roundMatchups.length} match${roundMatchups.length === 1 ? '' : 'es'}, ${byeTeam.playerName} gets a bye`,
+          matchups: roundMatchups
+        });
       }
-      
-      schedule.push(roundMatches);
-      
-      // Rotate teams for next round (first team stays fixed)
-      teamIds.splice(1, 0, teamIds.pop());
+    } else {
+      // Even number of teams: n - 1 rounds, 0 byes, n / 2 matches per round
+      for (let r = 0; r < totalRounds; r++) {
+        const roundMatchups = [];
+        const partnerIdx = 1 + r;
+
+        // Match with fixed team 0
+        const m1 = {
+          matchNumber: globalMatchNumber++,
+          round: `ROUND ${r + 1}`,
+          roundIndex: r + 1,
+          team1: teams[0].playerName,
+          team2: teams[partnerIdx].playerName,
+          player1: { name: teams[0].playerName, id: teams[0]._id ? teams[0]._id.toString() : null },
+          player2: { name: teams[partnerIdx].playerName, id: teams[partnerIdx]._id ? teams[partnerIdx]._id.toString() : null },
+          score: '',
+          status: 'Pending',
+          winner: null,
+          umpire: null,
+          umpireName: null,
+          court: null,
+          scheduledTime: null
+        };
+        roundMatchups.push(m1);
+        allMatches.push(m1);
+
+        for (let k = 1; k <= (n - 2) / 2; k++) {
+          const t1 = 1 + ((r - k + (n - 1)) % (n - 1));
+          const t2 = 1 + ((r + k) % (n - 1));
+          const firstIdx = Math.min(t1, t2);
+          const secondIdx = Math.max(t1, t2);
+
+          const team1 = teams[firstIdx];
+          const team2 = teams[secondIdx];
+
+          const matchObj = {
+            matchNumber: globalMatchNumber++,
+            round: `ROUND ${r + 1}`,
+            roundIndex: r + 1,
+            team1: team1.playerName,
+            team2: team2.playerName,
+            player1: { name: team1.playerName, id: team1._id ? team1._id.toString() : null },
+            player2: { name: team2.playerName, id: team2._id ? team2._id.toString() : null },
+            score: '',
+            status: 'Pending',
+            winner: null,
+            umpire: null,
+            umpireName: null,
+            court: null,
+            scheduledTime: null
+          };
+
+          roundMatchups.push(matchObj);
+          allMatches.push(matchObj);
+        }
+
+        rounds.push({
+          name: `ROUND ${r + 1}`,
+          matches: roundMatchups.length,
+          byes: 0,
+          teamsInRound: n,
+          details: `${roundMatchups.length} matches`,
+          matchups: roundMatchups
+        });
+      }
     }
-    
-    // Create rounds data
-    for (let i = 0; i < schedule.length; i++) {
-      rounds.push({
-        name: `ROUND ${i + 1}`,
-        matches: schedule[i].length,
-        byes: teams.length % 2 === 1 ? 1 : 0,
-        teamsInRound: teams.length,
-        details: teams.length % 2 === 1 
-          ? `${schedule[i].length} matches, 1 team gets bye` 
-          : `${schedule[i].length} matches`,
-        matchups: schedule[i]
-      });
-    }
-    
+
     return {
       matchType: 'League',
-      numTeams: teams.length,
+      numTeams: n,
       totalRounds,
       totalMatches,
+      matches: allMatches,
       rounds,
       pointsSystem: {
         win: 3,
         draw: 1,
         loss: 0,
       },
-      summary: `Each team plays ${teams.length - 1} matches. Total ${totalMatches} matches over ${totalRounds} rounds`,
+      summary: `Each team plays ${n - 1} matches. Total ${totalMatches} matches over ${totalRounds} rounds`,
       eventName: event.name
     };
   };
@@ -1011,7 +1313,18 @@ const editEventFixtures = (eventId) => {
       remainingTeams = matchesInRound;
     }
     
-    const totalMatches = totalGroupMatches + knockoutMatches;
+    // Flatten all matches across group and knockout rounds with sequential match numbers
+    const allMatches = [];
+    rounds.forEach(r => {
+      if (Array.isArray(r.matchups)) {
+        allMatches.push(...r.matchups);
+      }
+    });
+    allMatches.forEach((m, idx) => {
+      m.matchNumber = idx + 1;
+    });
+
+    const totalMatches = allMatches.length;
     const totalRounds = rounds.length;
     
     return {
@@ -1019,6 +1332,7 @@ const editEventFixtures = (eventId) => {
       numTeams: teams.length,
       totalRounds,
       totalMatches,
+      matches: allMatches,
       rounds,
       groupFixtures,
       summary: `${teams.length} teams in ${numGroups} groups, followed by knockout with ${teamsAdvancing} teams`,
@@ -1224,135 +1538,550 @@ const editEventFixtures = (eventId) => {
         {activeTab === "fixtures" && (
           <div className="mb-6">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-              <h2 className="text-xl font-semibold text-white">Fixtures</h2>
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                  <span>🏸</span>
+                  <span>Tournament Fixtures & Umpire Assignments</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Manage event fixtures, view tournament brackets, and assign court umpires to individual matches.
+                </p>
+              </div>
               
               <div className="flex flex-wrap items-center gap-2">
                 {/* Toggle button for franchise fixtures view */}
                 <button
                   onClick={toggleFranchiseFixtures}
-                  className={`${showFranchiseFixtures ? 'bg-red-600' : 'bg-gray-700'} hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition duration-300`}
+                  className={`${showFranchiseFixtures ? 'bg-red-600' : 'bg-gray-700'} hover:bg-red-700 text-white font-medium text-xs sm:text-sm py-2 px-3.5 rounded-lg transition duration-300`}
                 >
-                  {showFranchiseFixtures ? 'Show Event Fixtures' : 'Manage Franchise Teams'}
+                  {showFranchiseFixtures ? 'Show Standard Fixtures' : 'Manage Franchise Teams'}
                 </button>
-                
-                {/* Event filter dropdown (only show when not in franchise view) */}
-                {!showFranchiseFixtures && (
-                  <div className="relative">
-                    <select
-                      value={selectedFixtureEventId || ''}
-                      onChange={(e) => setSelectedFixtureEventId(e.target.value)}
-                      className="bg-gray-700 text-white border border-gray-600 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-red-500"
-                    >
-                      <option value="" disabled>Select Event</option>
-                      {tournament.events && tournament.events.map(event => (
-                        <option key={event._id} value={event._id}>
-                          {event.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                      <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
-                      </svg>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
-            
 
             {/* Franchise Fixtures View */}
             {showFranchiseFixtures ? (
               <FranchiseFixturesView tournamentId={id} events={tournament.events || []} />
             ) : (
-              // Regular Fixtures View
-              selectedFixtureEventId ? (
-                <div className="bg-gray-800 rounded-xl p-4 sm:p-6">
-                  <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-white">
-                        {getEventName(selectedFixtureEventId)}
-                      </h3>
-                      <p className="text-sm text-gray-400">
-                        {getEventDetails(selectedFixtureEventId)}
-                      </p>
+              <div className="space-y-5">
+                {/* Event Selector Pill Bar */}
+                {tournament.events && tournament.events.length > 0 && (
+                  <div className="bg-gray-800/90 border border-gray-700 rounded-xl p-3 shadow-md">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 flex items-center justify-between">
+                      <span>Select Tournament Event:</span>
+                      <span className="text-[11px] text-gray-500 font-normal">
+                        {tournament.events.length} Event{tournament.events.length !== 1 ? 's' : ''} Configured
+                      </span>
                     </div>
-                    <button
-                      onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
-                      className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300 flex items-center"
-                      disabled={isGeneratingFixtures}
-                    >
-                      {isGeneratingFixtures ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    <div className="flex flex-wrap gap-2">
+                      {tournament.events.map(event => {
+                        const isSelected = selectedFixtureEventId === event._id;
+                        const hasFixtures = !!eventFixtures[event._id];
+                        const matchCount = eventFixtures[event._id]?.matches?.length || 0;
+                        return (
+                          <button
+                            key={event._id}
+                            onClick={() => setSelectedFixtureEventId(event._id)}
+                            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 border ${
+                              isSelected
+                                ? 'bg-red-600 text-white border-red-500 shadow-md ring-2 ring-red-500/30'
+                                : 'bg-gray-900/80 text-gray-300 border-gray-700 hover:bg-gray-700 hover:text-white'
+                            }`}
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
-                            />
-                          </svg>
-                          Generate Fixtures
-                        </>
-                      )}
-                    </button>
+                            <span>{event.name}</span>
+                            <span className="text-[11px] opacity-75">({event.eventType} • {event.matchType})</span>
+                            {hasFixtures ? (
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              }`}>
+                                ✓ {matchCount} {matchCount === 1 ? 'Match' : 'Matches'}
+                              </span>
+                            ) : (
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                isSelected ? 'bg-white/10 text-white' : 'bg-gray-800 text-gray-400'
+                              }`}>
+                                No Fixtures
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  
-                  {fixtureError && (
-                    <div className="bg-red-500 bg-opacity-20 text-red-300 p-4 rounded-md mb-4">
-                      {fixtureError}
+                )}
+
+                {/* Selected Event Details & Match List */}
+                {selectedFixtureEventId ? (
+                  <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 shadow-md">
+                    {/* Event Header Banner */}
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-gray-700">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-lg font-bold text-white">
+                            {getEventName(selectedFixtureEventId)}
+                          </h3>
+                          {eventFixtures[selectedFixtureEventId] && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold">
+                              ✓ Fixtures Live
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {getEventDetails(selectedFixtureEventId)}
+                        </p>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {eventFixtures[selectedFixtureEventId] && (
+                          <>
+                            <button
+                              onClick={() => viewEventFixtures(selectedFixtureEventId)}
+                              className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-3.5 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm"
+                            >
+                              <span>🏆</span>
+                              <span>View Progression Bracket</span>
+                            </button>
+                            <button
+                              onClick={() => editEventFixtures(selectedFixtureEventId)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3.5 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm"
+                            >
+                              <span>✏️</span>
+                              <span>Edit Fixtures / Swaps</span>
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => generateFixturesFromTeams(selectedFixtureEventId)}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-3.5 rounded-lg transition-colors flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+                          disabled={isGeneratingFixtures}
+                        >
+                          {isGeneratingFixtures ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                              <span>Generating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>⚙️</span>
+                              <span>{eventFixtures[selectedFixtureEventId] ? 'Regenerate Fixtures' : 'Generate Fixtures'}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  
-                  {eventFixtures[selectedFixtureEventId] ? (
-                    <div className="text-white">
-                       <p className="mb-4">Fixtures have been generated for this event. Click the buttons below to view or edit them.</p>
-                       <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => viewEventFixtures(selectedFixtureEventId)}
-                  className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
-                >
-                  View Fixtures
-                </button>
-                <button
-                  onClick={() => editEventFixtures(selectedFixtureEventId)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-300"
-                >
-                  Edit Fixtures
-                </button>
+
+                    {fixtureError && (
+                      <div className="bg-red-950/80 border border-red-800 text-red-300 p-3 rounded-xl mt-4 text-xs flex items-center space-x-2">
+                        <span>⚠️</span>
+                        <span>{fixtureError}</span>
+                      </div>
+                    )}
+
+                    {/* Main Content Area */}
+                    {eventFixtures[selectedFixtureEventId] ? (
+                      (() => {
+                        const currentFixture = eventFixtures[selectedFixtureEventId];
+                        const allMatches = currentFixture?.matches || [];
+                        const totalCount = allMatches.length;
+                        const assignedCount = allMatches.filter(m => m.umpire).length;
+                        const unassignedCount = allMatches.filter(m => !m.umpire).length;
+                        const completedCount = allMatches.filter(m => m.status === 'Completed' || m.status === 'Walkover').length;
+                        const liveCount = allMatches.filter(m => m.status === 'In Progress').length;
+
+                        // Extract unique round names
+                        const availableRounds = Array.from(new Set(allMatches.map(m => m.round).filter(Boolean)));
+
+                        // Filter matches
+                        const filteredMatches = allMatches.filter(m => {
+                          if (matchRoundFilter !== 'all' && m.round !== matchRoundFilter) return false;
+                          if (matchUmpireFilter === 'unassigned' && m.umpire) return false;
+                          if (matchUmpireFilter === 'assigned' && !m.umpire) return false;
+                          if (matchUmpireFilter === 'completed' && m.status !== 'Completed' && m.status !== 'Walkover') return false;
+                          if (matchSearchQuery.trim()) {
+                            const q = matchSearchQuery.toLowerCase().trim();
+                            const p1 = (m.player1?.name || m.team1 || '').toLowerCase();
+                            const p2 = (m.player2?.name || m.team2 || '').toLowerCase();
+                            const uName = (m.umpireName || '').toLowerCase();
+                            const rName = (m.round || '').toLowerCase();
+                            const matchNum = `match ${m.matchNumber || ''}`.toLowerCase();
+                            if (!p1.includes(q) && !p2.includes(q) && !uName.includes(q) && !rName.includes(q) && !matchNum.includes(q)) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        });
+
+                        return (
+                          <div className="mt-5 space-y-5">
+                            {/* Summary Stat Cards */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div className="bg-gray-900/80 border border-gray-700/80 rounded-xl p-3 text-center">
+                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                                  Total Matches
+                                </span>
+                                <span className="text-xl font-extrabold text-white">{totalCount}</span>
+                              </div>
+
+                              <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-xl p-3 text-center">
+                                <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1">
+                                  Assigned Umpires
+                                </span>
+                                <span className="text-xl font-extrabold text-emerald-300">
+                                  {assignedCount} <span className="text-xs text-emerald-500/80 font-normal">({totalCount > 0 ? Math.round((assignedCount / totalCount) * 100) : 0}%)</span>
+                                </span>
+                              </div>
+
+                              <div className={`rounded-xl p-3 text-center border ${
+                                unassignedCount > 0
+                                  ? 'bg-amber-950/30 border-amber-800/50 text-amber-300'
+                                  : 'bg-gray-900/80 border-gray-700/80 text-gray-400'
+                              }`}>
+                                <span className="text-[11px] font-semibold uppercase tracking-wider block mb-1">
+                                  Unassigned
+                                </span>
+                                <span className="text-xl font-extrabold">
+                                  {unassignedCount}
+                                </span>
+                              </div>
+
+                              <div className="bg-gray-900/80 border border-gray-700/80 rounded-xl p-3 text-center">
+                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                                  Completed / Live
+                                </span>
+                                <span className="text-xl font-extrabold text-white">
+                                  {completedCount} <span className="text-xs text-amber-400 font-normal">{liveCount > 0 ? `(${liveCount} live)` : ''}</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Umpire Accounts Notice if 0 accounts created */}
+                            {organizerUmpires.length === 0 && (
+                              <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-amber-300">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-base">⚠️</span>
+                                  <span>No umpire accounts found. Create court officials in the <strong>Umpires</strong> tab so they appear in match dropdowns.</span>
+                                </div>
+                                <button
+                                  onClick={() => setActiveTab('umpires')}
+                                  className="bg-amber-600 hover:bg-amber-500 text-gray-950 font-bold py-1.5 px-3 rounded-lg whitespace-nowrap text-xs"
+                                >
+                                  Go to Umpires Tab →
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Filter and Search Toolbar */}
+                            <div className="bg-gray-900/90 border border-gray-700 rounded-xl p-3.5 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {/* Round Filter */}
+                                <div className="flex items-center space-x-1.5">
+                                  <label className="text-xs text-gray-400 whitespace-nowrap">Round:</label>
+                                  <select
+                                    value={matchRoundFilter}
+                                    onChange={(e) => setMatchRoundFilter(e.target.value)}
+                                    className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-red-500"
+                                  >
+                                    <option value="all">All Rounds ({totalCount})</option>
+                                    {availableRounds.map((rnd, idx) => (
+                                      <option key={idx} value={rnd}>
+                                        {rnd} ({allMatches.filter(m => m.round === rnd).length})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Umpire Filter */}
+                                <div className="flex items-center space-x-1.5">
+                                  <label className="text-xs text-gray-400 whitespace-nowrap">Umpire:</label>
+                                  <select
+                                    value={matchUmpireFilter}
+                                    onChange={(e) => setMatchUmpireFilter(e.target.value)}
+                                    className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-red-500"
+                                  >
+                                    <option value="all">All ({totalCount})</option>
+                                    <option value="unassigned">⚠️ Unassigned ({unassignedCount})</option>
+                                    <option value="assigned">✓ Assigned ({assignedCount})</option>
+                                    <option value="completed">Completed ({completedCount})</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center space-x-2">
+                                {/* Search input */}
+                                <div className="relative flex-1 sm:w-60">
+                                  <input
+                                    type="text"
+                                    value={matchSearchQuery}
+                                    onChange={(e) => setMatchSearchQuery(e.target.value)}
+                                    placeholder="Search players or match..."
+                                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-red-500 placeholder-gray-500"
+                                  />
+                                  <span className="absolute left-2.5 top-2 text-xs text-gray-500">🔍</span>
+                                  {matchSearchQuery && (
+                                    <button
+                                      onClick={() => setMatchSearchQuery('')}
+                                      className="absolute right-2.5 top-1.5 text-xs text-gray-400 hover:text-white"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Refresh Umpires button */}
+                                <button
+                                  onClick={reloadUmpires}
+                                  title="Sync latest umpire accounts from database"
+                                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 rounded-lg p-2 text-xs transition-colors flex items-center space-x-1"
+                                >
+                                  <span>↻</span>
+                                  <span className="hidden sm:inline">Umpires</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Match List Header */}
+                            <div className="flex justify-between items-center px-1">
+                              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                                <span>🏸</span>
+                                <span>Individual Match Schedule & Umpire Assignments</span>
+                                <span className="text-xs text-gray-400 font-normal">
+                                  ({filteredMatches.length} {filteredMatches.length === 1 ? 'match' : 'matches'} shown)
+                                </span>
+                              </h4>
+
+                              {(matchRoundFilter !== 'all' || matchUmpireFilter !== 'all' || matchSearchQuery) && (
+                                <button
+                                  onClick={() => {
+                                    setMatchRoundFilter('all');
+                                    setMatchUmpireFilter('all');
+                                    setMatchSearchQuery('');
+                                  }}
+                                  className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                                >
+                                  Reset Filters
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Match Cards List */}
+                            {filteredMatches.length === 0 ? (
+                              <div className="bg-gray-900/60 border border-gray-700/60 rounded-xl py-12 text-center text-gray-400">
+                                <p className="text-sm font-bold text-white">No matches found</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  No matches meet the current filter criteria.
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    setMatchRoundFilter('all');
+                                    setMatchUmpireFilter('all');
+                                    setMatchSearchQuery('');
+                                  }}
+                                  className="mt-3 text-xs text-red-400 hover:text-red-300 font-bold"
+                                >
+                                  Clear All Filters
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {filteredMatches.map((m, idx) => {
+                                  const mId = m._id || m.matchId;
+                                  const isAssigned = !!m.umpire;
+                                  const isSaving = assigningMatchId === (mId?.toString());
+                                  const isCompleted = m.status === 'Completed' || m.status === 'Walkover';
+                                  const winnerName = m.winner;
+                                  const isP1Winner = winnerName && winnerName === (m.player1?.name || m.team1);
+                                  const isP2Winner = winnerName && winnerName === (m.player2?.name || m.team2);
+
+                                  return (
+                                    <div
+                                      key={mId || idx}
+                                      className={`bg-gray-900/90 border rounded-xl p-4 shadow-sm transition-all ${
+                                        isAssigned
+                                          ? 'border-gray-700/80 hover:border-gray-600'
+                                          : 'border-amber-900/40 hover:border-amber-700/60'
+                                      }`}
+                                    >
+                                      {/* Top Row: Round badge, Match #, Schedule Time, Court, Status */}
+                                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-2.5 mb-3">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="px-2.5 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold uppercase tracking-wide">
+                                            {m.round || `Round ${m.roundIndex || 1}`}
+                                          </span>
+                                          <span className="text-xs font-bold text-gray-300">
+                                            Match #{m.matchNumber || idx + 1}
+                                          </span>
+                                          {m.scheduledTime ? (
+                                            <span className="text-xs text-gray-400 flex items-center space-x-1">
+                                              <span>🕒</span>
+                                              <span>{new Date(m.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-gray-500">
+                                              🕒 Unscheduled
+                                            </span>
+                                          )}
+                                          {m.court ? (
+                                            <span className="text-xs text-teal-400 bg-teal-950/40 px-2 py-0.5 rounded border border-teal-800/40">
+                                              🏸 {m.court}
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-gray-500">
+                                              Court Unassigned
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div>
+                                          <span className={`text-[11px] px-2.5 py-1 rounded-full font-bold ${
+                                            m.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                            m.status === 'In Progress' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse' :
+                                            m.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                            m.status === 'Walkover' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                            'bg-gray-800 text-gray-400 border border-gray-700'
+                                          }`}>
+                                            {m.status || 'Pending'}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Main Content: Player 1 vs Player 2 & Independent Umpire Dropdown */}
+                                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                                        {/* Matchup */}
+                                        <div className="lg:col-span-7 flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                                          {/* Player 1 */}
+                                          <div className={`flex-1 w-full p-2.5 rounded-lg border ${
+                                            isP1Winner
+                                              ? 'bg-emerald-950/30 border-emerald-700/60 text-emerald-300'
+                                              : 'bg-gray-800/80 border-gray-700/70 text-white'
+                                          }`}>
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-sm font-bold truncate">
+                                                {m.player1?.name || m.team1 || 'TBD (To Be Decided)'}
+                                              </span>
+                                              {isP1Winner && (
+                                                <span className="text-xs font-black text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded ml-2 whitespace-nowrap">
+                                                  🏆 Winner
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <div className="self-center text-xs font-black text-gray-500 uppercase px-1">
+                                            vs
+                                          </div>
+
+                                          {/* Player 2 */}
+                                          <div className={`flex-1 w-full p-2.5 rounded-lg border ${
+                                            isP2Winner
+                                              ? 'bg-emerald-950/30 border-emerald-700/60 text-emerald-300'
+                                              : 'bg-gray-800/80 border-gray-700/70 text-white'
+                                          }`}>
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-sm font-bold truncate">
+                                                {m.player2?.name || m.team2 || 'TBD (To Be Decided)'}
+                                              </span>
+                                              {isP2Winner && (
+                                                <span className="text-xs font-black text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded ml-2 whitespace-nowrap">
+                                                  🏆 Winner
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Score display if completed */}
+                                          {m.score && (
+                                            <div className="sm:ml-2 w-full sm:w-auto font-mono text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2.5 py-2 rounded-lg whitespace-nowrap text-center">
+                                              {m.score}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Independent Umpire Assignment Dropdown for THIS match */}
+                                        <div className="lg:col-span-5 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2.5">
+                                          <div className="flex flex-col">
+                                            <span className="text-[11px] font-medium text-gray-400">
+                                              Current Umpire:
+                                            </span>
+                                            {m.umpireName ? (
+                                              <span className="text-xs font-bold text-emerald-400 flex items-center space-x-1">
+                                                <span>✓</span>
+                                                <span className="truncate max-w-[130px]">{m.umpireName}</span>
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs font-semibold text-amber-400 flex items-center space-x-1">
+                                                <span>⚠️</span>
+                                                <span>Unassigned</span>
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div className="relative w-full sm:w-56">
+                                            <select
+                                              disabled={isCompleted || isSaving}
+                                              value={m.umpire?._id || m.umpire || ''}
+                                              onChange={(e) => handleAssignUmpire(mId, e.target.value)}
+                                              className={`w-full text-xs rounded-xl px-3 py-2.5 border font-semibold focus:outline-none focus:ring-2 transition-all disabled:opacity-50 ${
+                                                isAssigned
+                                                  ? 'bg-emerald-950/30 border-emerald-700/60 text-emerald-300 focus:ring-emerald-500'
+                                                  : 'bg-gray-800 border-gray-600 text-gray-200 focus:ring-red-500'
+                                              }`}
+                                            >
+                                              <option value="">-- Unassigned --</option>
+                                              {organizerUmpires.map((u) => (
+                                                <option key={u._id} value={u._id}>
+                                                  🏸 {u.name} ({u.email})
+                                                </option>
+                                              ))}
+                                            </select>
+                                            {isSaving && (
+                                              <div className="absolute right-3 top-3">
+                                                <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="text-gray-400 text-center py-12">
+                        <div className="w-12 h-12 rounded-full bg-gray-700/50 flex items-center justify-center mx-auto mb-3 text-2xl">
+                          🏸
+                        </div>
+                        <p className="text-base font-bold text-white">No Fixtures Generated Yet</p>
+                        <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                          Click the "Generate Fixtures" button above to create match brackets and begin assigning court umpires.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-gray-800 rounded-xl p-8 text-center border border-gray-700">
+                    <p className="text-gray-400">
+                      Please select an event to generate or view fixtures.
+                    </p>
+                  </div>
+                )}
               </div>
-                    </div>
-                  ) : (
-                    <div className="text-gray-400 text-center py-8">
-                      <p>No fixtures have been generated for this event yet.</p>
-                      <p className="text-sm mt-2">Click the 'Generate Fixtures' button to create fixtures based on registered teams.</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-gray-800 rounded-xl p-6 text-center">
-                  <p className="text-gray-400">
-                    Please select an event to generate or view fixtures.
-                  </p>
-                </div>
-              )
             )}
           </div>
         )}
         {/* Results Tab Content */}
         {activeTab === "results" && (
           <ResultsView tournamentId={id} events={tournament.events || []} />
+        )}
+
+        {/* Umpires Tab Content */}
+        {activeTab === "umpires" && (
+          <UmpiresView tournamentId={id} />
         )}
 
         {/* Fixture Editor Modal */}
@@ -1371,6 +2100,8 @@ const editEventFixtures = (eventId) => {
           <FixtureModal
             fixtureData={fixtureData}
             setShowFixtureModal={setShowFixtureModal}
+            organizerUmpires={organizerUmpires}
+            onAssignUmpire={handleAssignUmpire}
           />
         )}
 

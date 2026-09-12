@@ -22,7 +22,11 @@ const {
   saveEventFixtures,
   getEventFixtures,
   getAllTournamentEventFixtures,
-  updateEventMatch: updateEventFixtureMatch
+  updateEventMatch: updateEventFixtureMatch,
+  assignMatchUmpire,
+  getUmpireAssignedMatches,
+  getMatchForScoring,
+  submitMatchScore
 } = require('../controllers/eventFixtureController');
 
 // Public routes
@@ -32,6 +36,10 @@ router.get('/public/:id', getPublicTournamentById);
 
 // All routes are protected and require authentication
 router.use(protect);
+
+// Umpire assigned matches route (Must be before parameterized :id routes)
+router.route('/umpire/assigned-matches')
+  .get(getUmpireAssignedMatches);
 
 // Tournament routes
 router.route('/organizer')
@@ -70,6 +78,13 @@ router.route('/:id/events/:eventId/fixtures')
   .post(saveEventFixtures);
 
 router.route('/:id/events/:eventId/fixtures/matches/:matchId')
+  .get(getMatchForScoring)
   .patch(updateEventFixtureMatch);
+
+router.route('/:id/events/:eventId/fixtures/matches/:matchId/assign-umpire')
+  .patch(assignMatchUmpire);
+
+router.route('/:id/events/:eventId/fixtures/matches/:matchId/submit-score')
+  .post(submitMatchScore);
 
 module.exports = router;

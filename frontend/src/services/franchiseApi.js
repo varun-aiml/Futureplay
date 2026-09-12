@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-// http://localhost:5000/api
-// const API_URL = 'https://sportstek.onrender.com/api';
-const API_URL = 'http://localhost:5000/api';
+// Dynamic API host based on environment variable or current browser hostname (enables mobile testing)
+const API_URL = import.meta.env.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname
+    ? `http://${window.location.hostname}:5000/api`
+    : 'http://localhost:5000/api'
+);
 
 
 const franchiseApi = axios.create({

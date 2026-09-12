@@ -85,13 +85,13 @@ const AddEvents = () => {
       totalMatches = numTeams - 1;
 
       // Calculate matches per round and byes
-      let teamsInFirstRound = Math.pow(2, totalRounds);
-      byes = teamsInFirstRound - numTeams;
+      let perfectBracketSize = Math.pow(2, totalRounds);
+      byes = perfectBracketSize - numTeams;
 
       // Generate round details
       for (let i = 1; i <= totalRounds; i++) {
         let roundName = "";
-        let matchesInRound = Math.pow(2, totalRounds - i);
+        let matchesInRound = 0;
 
         if (i === totalRounds) {
           roundName = "FINAL";
@@ -103,6 +103,12 @@ const AddEvents = () => {
           roundName = `ROUND ${i}`;
         }
 
+        if (i === 1 && byes > 0) {
+          matchesInRound = numTeams - Math.pow(2, totalRounds - 1);
+        } else {
+          matchesInRound = Math.pow(2, totalRounds - i);
+        }
+
         rounds.push({
           name: roundName,
           matches: matchesInRound,
@@ -112,7 +118,7 @@ const AddEvents = () => {
     } else if (matchType === "League") {
       // League format (round robin)
       totalMatches = (numTeams * (numTeams - 1)) / 2;
-      totalRounds = numTeams - 1;
+      totalRounds = numTeams % 2 === 0 ? numTeams - 1 : numTeams;
 
       for (let i = 1; i <= totalRounds; i++) {
         rounds.push({
